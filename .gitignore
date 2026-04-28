@@ -1,0 +1,15 @@
+share/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.next/
+**/node_modules/
+**/*.pyc
+**/*.pyo
+**/.DS_Store
+backend/.env
+backend/manju.db
+backend/.local/
+.claude/
+.gitnexus/

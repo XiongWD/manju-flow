@@ -1,0 +1,34 @@
+"use client"
+
+import GlassSurface from '@/components/ui/primitives/GlassSurface'
+import GlassButton from '@/components/ui/primitives/GlassButton'
+import { useParams, useRouter } from 'next/navigation'
+
+export default function ShotEditorPage() {
+  const params = useParams()
+  const router = useRouter()
+  const projectId = params.id as string
+
+  return (
+    <div className="min-h-screen bg-zinc-950 p-4 md:p-8">
+      <div className="max-w-3xl mx-auto">
+        <GlassSurface variant="panel" className="text-center space-y-6">
+          <h1 className="text-2xl font-bold text-zinc-100">
+            分镜编辑器
+          </h1>
+          <p className="text-zinc-400 text-lg">
+            创建与管理项目分镜，即将上线
+          </p>
+          <div className="pt-4">
+            <GlassButton
+              variant="secondary"
+              onClick={() => router.push(`/workspace/projects/${projectId}`)}
+            >
+              返回项目
+            </GlassButton>
+          </div>
+        </GlassSurface>
+      </div>
+    </div>
+  )
+}
