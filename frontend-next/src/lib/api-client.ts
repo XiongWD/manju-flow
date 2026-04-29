@@ -121,6 +121,61 @@ export interface Episode {
 export interface EpisodeWithScenes extends Episode {
   scene_count?: number;
   scenes?: Scene[];
+  effective_tier?: string;
+  tier_source?: string;
+}
+
+// ── Audio Config types ───────────────────────────────────────────────
+
+export interface VoiceConfig {
+  provider: string;
+  voice_id: string;
+  params?: {
+    stability?: number;
+    similarity_boost?: number;
+  };
+}
+
+export interface BGMConfig {
+  provider: string;
+  style?: string;
+  volume?: number;
+  fade_in?: number;
+  fade_out?: number;
+  loop?: boolean;
+}
+
+export interface MixConfig {
+  voice_volume?: number;
+  bgm_volume?: number;
+  sample_rate?: number;
+  format?: string;
+}
+
+export interface AudioConfig {
+  voice: VoiceConfig;
+  bgm: BGMConfig;
+  mix: MixConfig;
+}
+
+export interface EpisodeAudioConfig {
+  effective_config: AudioConfig;
+  config_sources: {
+    project_default?: AudioConfig;
+    episode_override?: AudioConfig;
+    scene_override?: AudioConfig;
+  };
+}
+
+export interface EpisodeAudioAssets {
+  voice_assets: Asset[];
+  bgm_assets: Asset[];
+  mixed_audio_assets: Asset[];
+}
+
+export interface QAEvidenceAssets {
+  evidence_assets: Asset[];
+  detection_json_assets: Asset[];
 }
 
 export interface Scene {
@@ -142,6 +197,144 @@ export interface SceneVersionSummary {
   status: string;
   score_snapshot?: Record<string, number>;
   cost_actual?: number;
+}
+
+export interface FallbackRecord {
+  from_tier: string;
+  to_tier: string;
+  from_provider: string;
+  to_provider: string;
+  reason: string;
+  trigger_gate: string;
+  retry_count: number;
+  scene_version_id: string;
+  timestamp: string;
+}
+
+export interface SceneVersionTreeNode {
+  id: string;
+  version_no: number;
+  parent_version_id?: string;
+  status: string;
+  prompt_bundle?: Record<string, unknown>;
+  model_bundle?: Record<string, unknown>;
+  params?: Record<string, unknown>;
+  change_reason?: string;
+  score_snapshot?: Record<string, number>;
+  cost_actual?: number;
+  created_at?: string;
+  updated_at?: string;
+  fallback_records: FallbackRecord[];
+}
+
+export interface SceneVersionTreeResponse {
+  scene_id: string;
+  locked_version_id?: string;
+  versions: SceneVersionTreeNode[];
+}
+
+export interface FallbackHistoryResponse {
+  scene_id: string;
+  fallback_records: FallbackRecord[];
+}
+
+export interface LockSceneVersionRequest {
+  scene_id: string;
+  scene_version_id: string;
+  force?: boolean;
+}
+
+export interface LockSceneVersionResponse {
+  scene_id: string;
+  locked_version_id: string;
+  status: string;
+}
+
+// ── 042a: 局部返修 + version diff + locked_version 切换 ──────────
+
+export interface SceneReworkRequest {
+  scene_version_id: string;
+  change_reason: string;
+  project_id: string;
+  episode_id?: string;
+}
+
+export interface SceneReworkResponse {
+  job_id: string;
+  scene_version_id?: string;
+  parent_version_id: string;
+  status: string;
+  message: string;
+}
+
+export interface VersionFieldDiff {
+  field: string;
+  label: string;
+  value_a: unknown;
+  value_b: unknown;
+  changed: boolean;
+}
+
+export interface VersionDiffResponse {
+  scene_id: string;
+  version_a: SceneVersionTreeNode;
+  version_b: SceneVersionTreeNode;
+  diffs: VersionFieldDiff[];
+  changed_fields: string[];
+}
+
+export interface SwitchLockedVersionRequest {
+  scene_version_id: string;
+  force?: boolean;
+}
+
+export interface SwitchLockedVersionResponse {
+  scene_id: string;
+  locked_version_id: string;
+  previous_locked_version_id?: string;
+  status: string;
+}
+
+// ── 042b: 字幕编辑 + 音频混音编辑 ──────────
+
+export interface SubtitleCue {
+  index: number;
+  start_time: number;
+  end_time: number;
+  text: string;
+}
+
+export interface SubtitleEditRequest {
+  cues: SubtitleCue[];
+}
+
+export interface SubtitleEditResponse {
+  scene_id: string;
+  scene_version_id: string;
+  cues: SubtitleCue[];
+  updated: boolean;
+}
+
+export interface AudioMixEditRequest {
+  voice_volume?: number;
+  bgm_volume?: number;
+  bgm_fade_in?: number;
+  bgm_fade_out?: number;
+}
+
+export interface AudioMixEditResponse {
+  scene_id: string;
+  scene_version_id: string;
+  voice_volume: number;
+  bgm_volume: number;
+  bgm_fade_in: number;
+  bgm_fade_out: number;
+  updated: boolean;
+}
+
+export interface EpisodeWithTierInfo extends Episode {
+  effective_tier?: string;
+  tier_source?: string;
 }
 
 export interface SceneVersion {
@@ -252,6 +445,33 @@ export interface JobDetail {
   finished_at: string | null;
   steps?: JobStep[];
   latest_progress?: JobProgress;
+}
+
+export interface RuleExecutionResult {
+  rule_id: string;
+  platform: string;
+  subject_type: string;
+  subject_id: string;
+  passed: boolean;
+  severity: 'BLOCK' | 'FLAG';
+  auto_checkable: boolean;
+  manual_review_required: boolean;
+  evidence?: Record<string, unknown>;
+  failure_reason?: string;
+  qa_run_id?: string;
+  qa_issue_ids?: string[];
+}
+
+export interface RulesReportResponse {
+  results: RuleExecutionResult[];
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    block_count: number;
+    flag_count: number;
+    manual_review_count: number;
+  };
 }
 
 export interface UploadResponse {
@@ -387,6 +607,61 @@ class ApiClient {
 
   async listSceneVersions(sceneId: string): Promise<SceneVersion[]> {
     return this.get<SceneVersion[]>(`scenes/${sceneId}/versions`);
+  }
+
+  async getSceneVersionTree(sceneId: string): Promise<SceneVersionTreeResponse> {
+    return this.get<SceneVersionTreeResponse>(`scenes/${sceneId}/version-tree`);
+  }
+
+  async getSceneFallbackHistory(sceneId: string): Promise<FallbackHistoryResponse> {
+    return this.get<FallbackHistoryResponse>(`scenes/${sceneId}/fallback-history`);
+  }
+
+  // ── Lock Scene Version API ───────────────────────────────────────
+
+  async lockSceneVersion(data: LockSceneVersionRequest): Promise<LockSceneVersionResponse> {
+    return this.post<LockSceneVersionResponse>('episodes/lock-scene-version', data);
+  }
+
+  // ── 042a: 局部返修 + version diff + locked_version 切换 ──────────
+
+  async reworkSceneVersion(sceneId: string, data: SceneReworkRequest): Promise<SceneReworkResponse> {
+    return this.post<SceneReworkResponse>(`scenes/${sceneId}/rework`, data);
+  }
+
+  async getSceneVersionDiff(sceneId: string, versionAId: string, versionBId: string): Promise<VersionDiffResponse> {
+ const query = new URLSearchParams();
+    query.set('version_a_id', versionAId);
+    query.set('version_b_id', versionBId);
+    return this.get<VersionDiffResponse>(`scenes/${sceneId}/versions/diff?${query.toString()}`);
+  }
+
+  async switchLockedVersion(sceneId: string, data: SwitchLockedVersionRequest): Promise<SwitchLockedVersionResponse> {
+    return this.post<SwitchLockedVersionResponse>(`scenes/${sceneId}/switch-locked`, data);
+  }
+
+  // ── 042b: 字幕编辑 + 音频混音编辑 ──────────
+
+  async getSceneSubtitle(sceneId: string, versionId: string): Promise<SubtitleEditResponse> {
+    return this.get<SubtitleEditResponse>(`scenes/${sceneId}/versions/${versionId}/subtitle`);
+  }
+
+  async updateSceneSubtitle(sceneId: string, versionId: string, data: SubtitleEditRequest): Promise<SubtitleEditResponse> {
+    return this.request<SubtitleEditResponse>(`scenes/${sceneId}/versions/${versionId}/subtitle`, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async getSceneAudioMix(sceneId: string, versionId: string): Promise<AudioMixEditResponse> {
+    return this.get<AudioMixEditResponse>(`scenes/${sceneId}/versions/${versionId}/audio-mix`);
+  }
+
+  async updateSceneAudioMix(sceneId: string, versionId: string, data: AudioMixEditRequest): Promise<AudioMixEditResponse> {
+    return this.request<AudioMixEditResponse>(`scenes/${sceneId}/versions/${versionId}/audio-mix`, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
   }
 
   // ── Job API ─────────────────────────────────────────────────
@@ -645,6 +920,29 @@ class ApiClient {
 
   async getWorkspaceOverview(): Promise<WorkspaceOverview> {
     return this.get<WorkspaceOverview>('workspace/overview');
+  }
+
+  // ── Audio Config API ───────────────────────────────────────────────
+
+  async getEpisodeAudioConfig(episodeId: string): Promise<EpisodeAudioConfig> {
+    return this.get<EpisodeAudioConfig>(`episodes/${episodeId}/audio-config`);
+  }
+
+  async getEpisodeAudioAssets(episodeId: string): Promise<EpisodeAudioAssets> {
+    return this.get<EpisodeAudioAssets>(`episodes/${episodeId}/audio-assets`);
+  }
+
+  // ── Rules Report API ──────────────────────────────────────────
+
+  async getEpisodeRulesReport(episodeId: string): Promise<RulesReportResponse> {
+    const result = await this.get<{data: RulesReportResponse} | RulesReportResponse>(
+      `episodes/${episodeId}/rules-report`
+    );
+    return "data" in result ? result.data : result;
+  }
+
+  async getEpisodeQAEvidenceAssets(episodeId: string): Promise<QAEvidenceAssets> {
+    return this.get<QAEvidenceAssets>(`episodes/${episodeId}/qa-evidence-assets`);
   }
 }
 

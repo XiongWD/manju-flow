@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { GlassSurface, GlassChip } from "@/components/ui/primitives";
-import { apiClient, EpisodeWithScenes, AssetWithLinks } from "@/lib/api-client";
+import { apiClient, EpisodeWithScenes, AssetWithLinks, EpisodeAudioConfig, EpisodeAudioAssets, QAEvidenceAssets, RulesReportResponse } from "@/lib/api-client";
 import { SceneList } from "./SceneList";
 import { SceneCreateForm } from "./SceneCreateForm";
 
@@ -33,12 +33,40 @@ async function EpisodeDetail({
     }
   }
 
+  // 获取音频配置和资产
+  let audioConfig = null;
+  let audioAssets = null;
+  let qaEvidenceAssets = null;
+  let rulesReport = null;
+  try {
+    audioConfig = await apiClient.getEpisodeAudioConfig(episodeId);
+    audioAssets = await apiClient.getEpisodeAudioAssets(episodeId);
+    qaEvidenceAssets = await apiClient.getEpisodeQAEvidenceAssets(episodeId);
+    rulesReport = await apiClient.getEpisodeRulesReport(episodeId).catch(() => null);
+  } catch {
+    // 音频数据可能不存在，忽略错误
+  }
+
   return (
-    <EpisodeDetailContent episode={episode} currentCutAsset={currentCutAsset} />
+    <EpisodeDetailContent episode={episode} currentCutAsset={currentCutAsset} audioConfig={audioConfig} audioAssets={audioAssets} qaEvidenceAssets={qaEvidenceAssets} rulesReport={rulesReport} />
   );
 }
 
-function EpisodeDetailContent({ episode, currentCutAsset }: { episode: EpisodeWithScenes; currentCutAsset: AssetWithLinks | null }) {
+function EpisodeDetailContent({
+  episode,
+  currentCutAsset,
+  audioConfig,
+  audioAssets,
+  qaEvidenceAssets,
+  rulesReport,
+}: {
+  episode: EpisodeWithScenes;
+  currentCutAsset: AssetWithLinks | null;
+  audioConfig: EpisodeAudioConfig | null;
+  audioAssets: EpisodeAudioAssets | null;
+  qaEvidenceAssets: QAEvidenceAssets | null;
+  rulesReport: RulesReportResponse | null;
+}) {
   const scenes = episode.scenes || [];
 
   // 从 asset_id 中提取简短标识（取前 8 位）
@@ -178,13 +206,185 @@ function EpisodeDetailContent({ episode, currentCutAsset }: { episode: EpisodeWi
           </div>
           <p className="text-xs text-zinc-600 mt-2">发布模块暂未开放，敬请期待</p>
         </div>
+
+        {/* 最小音频信息面板 */}
+        <div className="mt-6 pt-4 border-t border-zinc-800/50">
+          <div className="text-xs text-zinc-500 mb-3">音频配置</div>
+          <GlassSurface variant="panel" className="p-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              {/* Voice 配置 */}
+              <div className="flex flex-col">
+                <span className="text-zinc-500 text-xs">Voice Provider</span>
+                <span className="text-zinc-300">{audioConfig?.effective_config?.voice?.provider || '-'}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-zinc-500 text-xs">Voice ID</span>
+                <span className="text-zinc-300">{audioConfig?.effective_config?.voice?.voice_id || '-'}</span>
+              </div>
+              {/* BGM 配置 */}
+              <div className="flex flex-col">
+                <span className="text-zinc-500 text-xs">BGM Provider</span>
+                <span className="text-zinc-300">{audioConfig?.effective_config?.bgm?.provider || '-'}</span>
+              </div>
+              {/* Mix 参数 */}
+              <div className="flex flex-col">
+                <span className="text-zinc-500 text-xs">Mix 参数</span>
+                <span className="text-zinc-300">
+                  voice:{audioConfig?.effective_config?.mix?.voice_volume ?? '-'} bgm:{audioConfig?.effective_config?.mix?.bgm_volume ?? '-'}
+                </span>
+              </div>
+            </div>
+            {/* 最近音频资产入口 */}
+            <div className="mt-4 pt-3 border-t border-zinc-700">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-500">最近音频资产</span>
+                {audioAssets?.mixed_audio_assets?.[0]?.uri ? (
+                  <a
+                    href={audioAssets.mixed_audio_assets[0].uri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-violet-400 hover:underline"
+                  >
+                    打开 →
+                  </a>
+                ) : (
+                  <span className="text-xs text-zinc-600">暂无</span>
+                )}
+              </div>
+            </div>
+            {/* QA Evidence 入口 */}
+            <div className="mt-3 pt-3 border-t border-zinc-700">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-500">QA Evidence</span>
+                {qaEvidenceAssets?.evidence_assets?.[0]?.uri ? (
+                  <a
+                    href={qaEvidenceAssets.evidence_assets[0].uri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-violet-400 hover:underline"
+                  >
+                    打开 →
+                  </a>
+                ) : (
+                  <span className="text-xs text-zinc-600">暂无</span>
+                )}
+              </div>
+            </div>
+          </GlassSurface>
+        </div>
+      </GlassSurface>
+
+      {/* Rules Report — 041a.4 最小闭环 */}
+      <GlassSurface variant="elevated" className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-zinc-100 mb-1">Rules Report</h2>
+            <p className="text-xs text-zinc-500">平台合规规则检测 · BLOCK / FLAG / MANUAL_REVIEW_REQUIRED</p>
+          </div>
+          {rulesReport ? (
+            <div className="flex items-center gap-2">
+              {rulesReport.summary.block_count > 0 && (
+                <GlassChip tone="danger" className="text-xs">
+                  🚫 BLOCK ×{rulesReport.summary.block_count}
+                </GlassChip>
+              )}
+              {rulesReport.summary.flag_count > 0 && (
+                <GlassChip tone="warning" className="text-xs">
+                  ⚠️ FLAG ×{rulesReport.summary.flag_count}
+                </GlassChip>
+              )}
+              {rulesReport.summary.manual_review_count > 0 && (
+                <GlassChip tone="info" className="text-xs">
+                  👁 MANUAL_REVIEW ×{rulesReport.summary.manual_review_count}
+                </GlassChip>
+              )}
+              {rulesReport.summary.failed === 0 && rulesReport.summary.total > 0 && (
+                <GlassChip tone="success" className="text-xs">
+                  ✓ ALL PASSED
+                </GlassChip>
+              )}
+            </div>
+          ) : (
+            <GlassChip tone="neutral" className="text-xs text-zinc-500">
+              待后端接通
+            </GlassChip>
+          )}
+        </div>
+
+        {!rulesReport || rulesReport.results.length === 0 ? (
+          <div className="text-sm text-zinc-500">
+            {rulesReport
+              ? '所有规则已通过，无违规项'
+              : '规则报告尚未生成 — 041a.4 后端 API 就绪后自动展示'
+            }
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {rulesReport.results.map((r, idx) => (
+              <div
+                key={`${r.rule_id}-${r.subject_id}-${idx}`}
+                className={`p-3 rounded-lg border ${
+                  r.passed
+                    ? 'bg-zinc-900/40 border-zinc-800/50'
+                    : r.severity === 'BLOCK'
+                      ? 'bg-red-900/20 border-red-800/50'
+                      : 'bg-amber-900/20 border-amber-800/50'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <GlassChip
+                        tone={
+                          r.passed
+                            ? 'success'
+                            : r.severity === 'BLOCK'
+                              ? 'danger'
+                              : 'warning'
+                        }
+                        className="text-xs"
+                      >
+                        {r.passed ? 'PASS' : r.severity}
+                      </GlassChip>
+                      {r.manual_review_required && (
+                        <GlassChip tone="info" className="text-xs">
+                          MANUAL_REVIEW_REQUIRED
+                        </GlassChip>
+                      )}
+                      <span className="text-xs text-zinc-400 font-mono">{r.rule_id}</span>
+                      <span className="text-xs text-zinc-500">· {r.platform}</span>
+                    </div>
+                    <div className="text-sm text-zinc-300">
+                      {r.failure_reason || '—'}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500">
+                      <span>对象: {r.subject_type} #{r.subject_id.slice(0, 8)}</span>
+                      <span>检查: {r.auto_checkable ? '自动' : '手动'}</span>
+                      {r.qa_run_id && (
+                        <span className="text-violet-400">
+                          QA Run: #{r.qa_run_id.slice(0, 8)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </GlassSurface>
 
       {/* Create Scene Form */}
       <SceneCreateForm episodeId={episode.id} />
 
       {/* Scenes List */}
-      <SceneList scenes={scenes} projectId={episode.project_id} episodeId={episode.id} />
+      <SceneList
+        scenes={scenes}
+        projectId={episode.project_id}
+        episodeId={episode.id}
+        episodeEffectiveTier={episode.effective_tier}
+        episodeTierSource={episode.tier_source}
+      />
     </div>
   );
 }

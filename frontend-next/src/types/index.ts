@@ -16,9 +16,27 @@ export type {
   SeedResponse,
   Episode,
   EpisodeWithScenes,
+  EpisodeWithTierInfo,
+  LockSceneVersionRequest,
+  LockSceneVersionResponse,
+  SceneReworkRequest,
+  SceneReworkResponse,
+  VersionFieldDiff,
+  VersionDiffResponse,
+  SwitchLockedVersionRequest,
+  SwitchLockedVersionResponse,
+  SubtitleCue,
+  SubtitleEditRequest,
+  SubtitleEditResponse,
+  AudioMixEditRequest,
+  AudioMixEditResponse,
   Scene,
   SceneVersionSummary,
   SceneVersion,
+  SceneVersionTreeResponse,
+  SceneVersionTreeNode,
+  FallbackHistoryResponse,
+  FallbackRecord,
   QARun,
   QAIssue,
   QARunDetail,
@@ -29,6 +47,15 @@ export type {
   JobProgress,
   JobDetail,
   UploadResponse,
+  VoiceConfig,
+  BGMConfig,
+  MixConfig,
+  AudioConfig,
+  EpisodeAudioConfig,
+  EpisodeAudioAssets,
+  QAEvidenceAssets,
+  RuleExecutionResult,
+  RulesReportResponse,
 } from '../lib/api-client';
 
 // ── Supplemental enum/union types (not in api-client.ts) ─────────────────
@@ -54,3 +81,31 @@ export interface ProgressEvent {
   message: string;
   timestamp: string;
 }
+
+// ── 040b Audio Panel types ──────────────────────────────────────────
+
+/** Voice provider + voice ID combined */
+export type VoiceInfo = {
+  provider: VoiceConfig['provider'];
+  voice_id: VoiceConfig['voice_id'];
+  voice_params?: VoiceConfig['params'];
+};
+
+/** BGM provider + style combined */
+export type BGMInfo = {
+  provider: BGMConfig['provider'];
+  style?: BGMConfig['style'];
+  volume?: BGMConfig['volume'];
+  fade_in?: BGMConfig['fade_in'];
+  fade_out?: BGMConfig['fade_out'];
+  loop?: BGMConfig['loop'];
+};
+
+/** Mix parameters */
+export type MixParams = Pick<MixConfig, 'voice_volume' | 'bgm_volume' | 'sample_rate' | 'format'>;
+
+/** Recent audio assets entry (for 040b panel) */
+export type RecentAudioAssets = EpisodeAudioAssets;
+
+/** QA evidence entry (for 040b panel) */
+export type QAEvidence = QAEvidenceAssets;

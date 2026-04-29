@@ -1,4 +1,4 @@
-"""Manju Production OS — 全部 19 个 ORM 模型
+"""Manju Production OS — 全部 20 个 ORM 模型
 
 模型清单：
 1.  projects           2.  project_configs     3.  story_bibles
@@ -7,7 +7,7 @@
 10. asset_links         11. jobs               12. job_steps
 13. qa_runs             14. qa_issues          15. publish_jobs
 16. publish_variants    17. analytics_snapshots 18. knowledge_items
-19. api_keys
+19. api_keys            20. delivery_packages
 """
 
 from datetime import datetime
@@ -214,7 +214,8 @@ class Asset(Base):
 
     # asset type 枚举值：character_ref, scene_bg, image, video, audio,
     #   mixed_audio, subtitle, cover, rules_report, c2pa_manifest,
-    #   watermark_proof, qa_evidence, detection_json
+    #   watermark_proof, qa_evidence, detection_json,
+    #   delivery_bundle, platform_variant
 
     links: Mapped[list["AssetLink"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
 
@@ -342,6 +343,7 @@ class PublishJob(Base):
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     variants: Mapped[list["PublishVariant"]] = relationship(back_populates="publish_job", cascade="all, delete-orphan")
+    delivery_packages: Mapped[list["DeliveryPackage"]] = relationship(back_populates="publish_job", cascade="all, delete-orphan")
 
 
 # ─── 16. publish_variants ───────────────────────────────────────────────────
@@ -360,6 +362,38 @@ class PublishVariant(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     publish_job: Mapped["PublishJob"] = relationship(back_populates="variants")
+    delivery_package_id: Mapped[Optional[str]] = mapped_column(ForeignKey("delivery_packages.id", ondelete="SET NULL"), comment="关联交付包 ID")
+    resolution: Mapped[Optional[str]] = mapped_column(String(32), comment="分辨率（1080x1920/720x1280 等）")
+    aspect_ratio: Mapped[Optional[str]] = mapped_column(String(16), comment="画面比例（9:16/1:1/16:9）")
+    bitrate: Mapped[Optional[str]] = mapped_column(String(32), comment="码率（如 8M/4M）")
+    file_size: Mapped[Optional[int]] = mapped_column(Integer, comment="文件大小（bytes）")
+    duration: Mapped[Optional[float]] = mapped_column(Float, comment="时长（秒）")
+    metadata_json: Mapped[Optional[dict]] = mapped_column(JSON, comment="变体元数据（编码参数、水印配置等）")
+    delivery_package: Mapped[Optional["DeliveryPackage"]] = relationship()
+
+
+# ─── 20. delivery_packages ────────────────────────────────────────────────
+# 041b1 — 交付包：封装 episode 所有可交付资产
+
+class DeliveryPackage(Base):
+    __tablename__ = "delivery_packages"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    episode_id: Mapped[Optional[str]] = mapped_column(ForeignKey("episodes.id", ondelete="SET NULL"))
+    publish_job_id: Mapped[Optional[str]] = mapped_column(ForeignKey("publish_jobs.id", ondelete="SET NULL"))
+    package_no: Mapped[int] = mapped_column(Integer, nullable=False, comment="包序号（同一 episode 自增）")
+    status: Mapped[str] = mapped_column(String(32), default="BUILDING",
+                                         comment="BUILDING/READY/PUBLISHED/FAILED")
+    total_size: Mapped[Optional[int]] = mapped_column(Integer, comment="总文件大小（bytes）")
+    asset_count: Mapped[int] = mapped_column(Integer, default=0, comment="包含资产数量")
+    checksum: Mapped[Optional[str]] = mapped_column(String(64), comment="包级 SHA256 校验和")
+    manifest_json: Mapped[Optional[dict]] = mapped_column(JSON, comment="包清单（资产 ID 列表 + 各平台变体映射）")
+    built_at: Mapped[Optional[datetime]] = mapped_column(DateTime, comment="构建完成时间")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    publish_job: Mapped[Optional["PublishJob"]] = relationship(back_populates="delivery_packages")
 
 
 # ─── 17. analytics_snapshots ────────────────────────────────────────────────
@@ -369,7 +403,9 @@ class AnalyticsSnapshot(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
-    episode_id: Mapped[Optional[str]] = mapped_column(String(32))
+    episode_id: Mapped[Optional[str]] = mapped_column(ForeignKey("episodes.id", ondelete="SET NULL"))
+    publish_job_id: Mapped[Optional[str]] = mapped_column(ForeignKey("publish_jobs.id", ondelete="SET NULL"),
+                                                      comment="关联发布任务 ID（041b3）")
     platform: Mapped[Optional[str]] = mapped_column(String(32))
     external_post_id: Mapped[Optional[str]] = mapped_column(String(128))
     views: Mapped[Optional[int]] = mapped_column(Integer)
@@ -378,6 +414,8 @@ class AnalyticsSnapshot(Base):
     comments: Mapped[Optional[int]] = mapped_column(Integer)
     shares: Mapped[Optional[int]] = mapped_column(Integer)
     watch_time: Mapped[Optional[float]] = mapped_column(Float, comment="总观看时长（秒）")
+    source: Mapped[Optional[str]] = mapped_column(String(32), default="manual",
+                                                   comment="数据来源：manual/api_import/webhook")
     snapshot_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
@@ -389,12 +427,22 @@ class KnowledgeItem(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    episode_id: Mapped[Optional[str]] = mapped_column(ForeignKey("episodes.id", ondelete="SET NULL"),
+                                                     comment="关联剧集 ID（041b3）")
+    publish_job_id: Mapped[Optional[str]] = mapped_column(ForeignKey("publish_jobs.id", ondelete="SET NULL"),
+                                                          comment="关联发布任务 ID（041b3）")
+    analytics_snapshot_id: Mapped[Optional[str]] = mapped_column(String(32),
+                                                                comment="来源分析快照 ID（041b3）")
     category: Mapped[str] = mapped_column(String(32), nullable=False,
                                           comment="success/failure/hook/rule/playbook")
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     content: Mapped[Optional[str]] = mapped_column(Text)
     tags: Mapped[Optional[list]] = mapped_column(JSON, comment="标签列表")
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSON)
+    confidence: Mapped[Optional[float]] = mapped_column(Float, default=1.0,
+                                                        comment="置信度 0~1（041b3）")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True,
+                                            comment="是否生效（041b3）")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 

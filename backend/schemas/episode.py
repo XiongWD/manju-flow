@@ -46,3 +46,19 @@ class EpisodeWithScenesRead(EpisodeRead):
     """带场景列表的剧集详情"""
     scene_count: int = 0
     scenes: list = []  # 运行时填充 SceneWithVersionSummary 字典
+    effective_tier: Optional[str] = Field(None, description="有效 Tier 等级")
+    tier_source: Optional[str] = Field(None, description="Tier 来源（project_default / episode_override / default_fallback）")
+
+
+class LockSceneVersionRequest(BaseModel):
+    """锁定场景版本请求"""
+    scene_id: str = Field(..., description="场景 ID")
+    scene_version_id: str = Field(..., description="场景版本 ID")
+    force: bool = Field(default=False, description="是否强制覆盖（仅管理员）")
+
+
+class LockSceneVersionResponse(BaseModel):
+    """锁定场景版本响应"""
+    scene_id: str
+    locked_version_id: str
+    status: str = "LOCKED"

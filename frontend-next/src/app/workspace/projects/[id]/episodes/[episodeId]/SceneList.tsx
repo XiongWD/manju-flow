@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { GlassSurface, GlassChip, GlassButton, GlassField, GlassInput } from "@/components/ui/primitives";
-import { apiClient, Scene, Asset, SceneVersion, QARun, QARunDetail } from "@/lib/api-client";
+import { apiClient, Scene, Asset, SceneVersion, QARun, QARunDetail, SceneVersionTreeResponse, FallbackHistoryResponse, VersionDiffResponse } from "@/lib/api-client";
+import type { SceneReworkResponse, SwitchLockedVersionResponse, SubtitleCue, AudioMixEditResponse } from "@/lib/api-client";
 
 interface SceneListProps {
   scenes: Scene[];
   projectId: string;
   episodeId: string;
+  episodeEffectiveTier?: string;
+  episodeTierSource?: string;
 }
 
 interface PreviewAsset {
@@ -140,7 +143,7 @@ function LockStatusBadge({
   );
 }
 
-export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
+export function SceneList({ scenes, projectId, episodeId, episodeEffectiveTier, episodeTierSource }: SceneListProps) {
   const [previewingScene, setPreviewingScene] = useState<Scene | null>(null);
   const [previewAssets, setPreviewAssets] = useState<PreviewAsset[] | null>(null);
   const [loadingAssets, setLoadingAssets] = useState(false);
@@ -149,6 +152,9 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<SceneVersion | null>(null);
   const [loadingVersions, setLoadingVersions] = useState(false);
+  const [versionTree, setVersionTree] = useState<SceneVersionTreeResponse | null>(null);
+  const [fallbackHistory, setFallbackHistory] = useState<FallbackHistoryResponse | null>(null);
+  const [loadingFallbackHistory, setLoadingFallbackHistory] = useState(false);
 
   // 编辑状态
   const [editingScene, setEditingScene] = useState<Scene | null>(null);
@@ -229,6 +235,47 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
   const [lockError, setLockError] = useState<string | null>(null);
   const [lockSuccess, setLockSuccess] = useState(false);
 
+  // 042a: 返修状态
+  const [reworkingVersion, setReworkingVersion] = useState<SceneVersion | null>(null);
+  const [reworkReason, setReworkReason] = useState('');
+  const [reworkSubmitting, setReworkSubmitting] = useState(false);
+  const [reworkError, setReworkError] = useState<string | null>(null);
+  const [reworkSuccess, setReworkSuccess] = useState<SceneReworkResponse | null>(null);
+
+  // 042a: 版本对比状态
+  const [diffMode, setDiffMode] = useState(false);
+  const [diffVersionAId, setDiffVersionAId] = useState<string | null>(null);
+  const [diffVersionBId, setDiffVersionBId] = useState<string | null>(null);
+  const [versionDiff, setVersionDiff] = useState<VersionDiffResponse | null>(null);
+  const [loadingDiff, setLoadingDiff] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
+
+  // 042b: 字幕编辑状态
+  const [subtitleCues, setSubtitleCues] = useState<SubtitleCue[]>([]);
+  const [editingSubtitle, setEditingSubtitle] = useState(false);
+  const [subtitleSaving, setSubtitleSaving] = useState(false);
+  const [subtitleError, setSubtitleError] = useState<string | null>(null);
+  const [loadingSubtitle, setLoadingSubtitle] = useState(false);
+
+  // 042b: 音频混音编辑状态
+  const [audioMixData, setAudioMixData] = useState<AudioMixEditResponse | null>(null);
+  const [editingAudioMix, setEditingAudioMix] = useState(false);
+  const [audioMixForm, setAudioMixForm] = useState({
+    voice_volume: 1.0,
+    bgm_volume: 0.3,
+    bgm_fade_in: 1.0,
+    bgm_fade_out: 2.0,
+  });
+  const [audioMixSaving, setAudioMixSaving] = useState(false);
+  const [audioMixError, setAudioMixError] = useState<string | null>(null);
+  const [loadingAudioMix, setLoadingAudioMix] = useState(false);
+
+  // 042a: 切换锁定版本状态
+  const [switchingLocked, setSwitchingLocked] = useState<Scene | null>(null);
+  const [switchSubmitting, setSwitchSubmitting] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const [switchSuccess, setSwitchSuccess] = useState<SwitchLockedVersionResponse | null>(null);
+
   // QA 状态
   const [versionQARun, setVersionQARun] = useState<QARunDetail | null>(null);
   const [versionQARuns, setVersionQARuns] = useState<QARun[] | null>(null);
@@ -245,15 +292,36 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
     setSelectedVersion(null);
     setLoadingVersions(true);
     setLoadingAssets(true);
+    setLoadingFallbackHistory(true);
     setPreviewError(null);
     setPreviewAssets(null);
+    setVersionTree(null);
+    setFallbackHistory(null);
     setLoadingRecentJobs(true);
     setRecentJobsError(null);
     setRecentJobs(null);
 
     try {
-      // Fetch all versions for this scene
-      const versions = await apiClient.listSceneVersions(scene.id);
+      // Fetch version tree for this scene (includes fallback records)
+      const tree = await apiClient.getSceneVersionTree(scene.id);
+      setVersionTree(tree);
+
+      // Convert tree nodes to version list
+      const versions = tree.versions.map(v => ({
+        id: v.id,
+        scene_id: scene.id,
+        parent_version_id: v.parent_version_id,
+        version_no: v.version_no,
+        status: v.status,
+        prompt_bundle: v.prompt_bundle,
+        model_bundle: v.model_bundle,
+        params: v.params,
+        change_reason: v.change_reason,
+        score_snapshot: v.score_snapshot,
+        cost_actual: v.cost_actual,
+        created_at: v.created_at,
+        updated_at: v.updated_at,
+      }));
       setSceneVersions(versions);
 
       // Find selected version from list
@@ -280,6 +348,10 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
       } else if (!previewAssetList.some((pa) => pa.asset.uri)) {
         setPreviewError("关联资产无可用链接");
       }
+
+      // Fetch fallback history for this scene
+      const fallbackHistoryResponse = await apiClient.getSceneFallbackHistory(scene.id);
+      setFallbackHistory(fallbackHistoryResponse);
 
       // Fetch recent jobs for this scene
       const jobsResponse = await apiClient.listJobs({
@@ -313,12 +385,17 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
           setLoadingQA(false);
         }
       }
+
+      // 042b: 加载字幕 + 音频混音数据
+      handleLoadSubtitle();
+      handleLoadAudioMix();
     } catch (error) {
       console.error("Failed to load assets:", error);
       setPreviewError("加载资产失败");
     } finally {
       setLoadingVersions(false);
       setLoadingAssets(false);
+      setLoadingFallbackHistory(false);
       setLoadingRecentJobs(false);
     }
   };
@@ -371,6 +448,10 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
       } else {
         setVersionQARun(null);
       }
+
+      // 042b: 切换版本时重新加载字幕 + 音频混音
+      handleLoadSubtitle();
+      handleLoadAudioMix();
     } catch (error) {
       console.error("Failed to load assets or QA data:", error);
       setPreviewError("加载资产失败");
@@ -498,8 +579,10 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
     setLockError(null);
 
     try {
-      await apiClient.updateScene(lockingScene.id, {
-        locked_version_id: selectedVersion.id,
+      await apiClient.lockSceneVersion({
+        scene_id: lockingScene.id,
+        scene_version_id: selectedVersion.id,
+        force: false, // 需要用户确认
       });
       setLockingScene(null);
       setLockSuccess(true);
@@ -579,7 +662,6 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
               <div className="text-xs text-zinc-500 flex items-center gap-1">
                 当前预览：版本 {selectedVersion.version_no} · 状态：
                 <VersionStatusBadge status={selectedVersion.status} />
-                {/* 显示锁定状态 */}
                 {previewingScene?.locked_version_id && (
                   <LockStatusBadge
                     isLocked={!!previewingScene.locked_version_id}
@@ -588,13 +670,117 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
                   />
                 )}
               </div>
-              <button
-                onClick={handleLockVersionClick}
-                className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors"
-              >
-                🔒 锁定此版本
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleLockVersionClick}
+                  className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors"
+                >
+                  🔒 锁定此版本
+                </button>
+                {previewingScene?.locked_version_id && previewingScene.locked_version_id !== selectedVersion.id && (
+                  <button
+                    onClick={handleSwitchLockedClick}
+                    className="text-xs px-2 py-1 bg-indigo-700 hover:bg-indigo-600 text-white rounded transition-colors"
+                  >
+                    🔄 切换锁定
+                  </button>
+                )}
+                <button
+                  onClick={() => handleReworkClick(selectedVersion)}
+                  className="text-xs px-2 py-1 bg-orange-700 hover:bg-orange-600 text-white rounded transition-colors"
+                >
+                  🔧 返修
+                </button>
+                {sceneVersions && sceneVersions.length >= 2 && (
+                  <button
+                    onClick={handleDiffToggle}
+                    className={`text-xs px-2 py-1 rounded transition-colors ${diffMode ? 'bg-blue-600 text-white' : 'bg-zinc-700 hover:bg-zinc-600 text-white'}`}
+                  >
+                    {diffMode ? '📊 对比中' : '📊 对比'}
+                  </button>
+                )}
+              </div>
             </div>
+
+            <GlassSurface variant="panel" className="p-4 mt-4">
+              <div className="text-xs text-zinc-500 mb-3 font-medium">版本链总览</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left text-zinc-300">
+                  <thead className="text-zinc-500 border-b border-zinc-800">
+                    <tr>
+                      <th className="py-2 pr-3">版本</th>
+                      <th className="py-2 pr-3">状态</th>
+                      <th className="py-2 pr-3">创建时间</th>
+                      <th className="py-2 pr-3">变更原因</th>
+                      <th className="py-2 pr-3">Tier</th>
+                      <th className="py-2 pr-3">Provider Path</th>
+                      <th className="py-2 pr-3">成本</th>
+                      <th className="py-2 pr-3">锁定</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sceneVersions.map((version) => {
+                      const isLockedVersion = previewingScene?.locked_version_id === version.id;
+                      const rowProviderPath = [
+                        typeof version.model_bundle?.primary_provider === 'string' ? version.model_bundle.primary_provider : null,
+                        typeof version.model_bundle?.provider === 'string' ? version.model_bundle.provider : null,
+                        typeof version.model_bundle?.fallback_provider === 'string' ? version.model_bundle.fallback_provider : null,
+                      ].filter(Boolean).join(' → ');
+                      const rowTier = typeof version.model_bundle?.tier === 'string' ? version.model_bundle.tier : '—';
+
+                      return (
+                        <tr key={version.id} className={`border-b border-zinc-900/80 ${selectedVersionId === version.id ? 'bg-zinc-900/60' : ''}`}>
+                          <td className="py-2 pr-3 font-medium">v{version.version_no}</td>
+                          <td className="py-2 pr-3"><VersionStatusBadge status={version.status} /></td>
+                          <td className="py-2 pr-3">{formatDateTime(version.created_at ?? null)}</td>
+                          <td className="py-2 pr-3 max-w-[220px] break-words">{version.change_reason || '—'}</td>
+                          <td className="py-2 pr-3">{rowTier}</td>
+                          <td className="py-2 pr-3 max-w-[220px] break-words">{rowProviderPath || '—'}</td>
+                          <td className="py-2 pr-3">{version.cost_actual != null ? `¥${version.cost_actual.toFixed(2)}` : '—'}</td>
+                          <td className="py-2 pr-3">{isLockedVersion ? '🔒 当前锁定' : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </GlassSurface>
+
+            <GlassSurface variant="panel" className="p-4 mt-4">
+              <div className="text-xs text-zinc-500 mb-3 font-medium">Tier 来源</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="rounded-lg bg-zinc-900/60 p-3">
+                  <div className="text-xs text-zinc-500 mb-1">当前生效 Tier</div>
+                  <div className="text-zinc-200 font-medium">{episodeEffectiveTier || '—'}</div>
+                </div>
+                <div className="rounded-lg bg-zinc-900/60 p-3">
+                  <div className="text-xs text-zinc-500 mb-1">来源</div>
+                  <div className="text-zinc-200 font-medium">{episodeTierSource || '—'}</div>
+                </div>
+              </div>
+            </GlassSurface>
+
+            <GlassSurface variant="panel" className="p-4 mt-4">
+              <div className="text-xs text-zinc-500 mb-3 font-medium">Fallback 历史</div>
+              {loadingFallbackHistory ? (
+                <div className="text-sm text-zinc-500">加载中...</div>
+              ) : !fallbackHistory || fallbackHistory.fallback_records.length === 0 ? (
+                <div className="text-sm text-zinc-500">暂无 fallback 历史</div>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {fallbackHistory.fallback_records.map((record, index) => (
+                    <div key={`${record.scene_version_id}-${record.timestamp}-${index}`} className="rounded-lg bg-zinc-900/60 p-3 text-xs text-zinc-300">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <GlassChip tone="warning" className="text-xs">{record.from_tier} → {record.to_tier}</GlassChip>
+                        <span className="text-zinc-500">{record.from_provider} → {record.to_provider}</span>
+                      </div>
+                      <div className="text-zinc-400">原因：{record.reason || '—'}</div>
+                      <div className="text-zinc-500 mt-1">触发 Gate：{record.trigger_gate || '—'} · 重试 {record.retry_count ?? 0} 次 · {formatDateTime(record.timestamp)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </GlassSurface>
             {renderVersionDetails()}
           </>
         )}
@@ -847,10 +1033,401 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
     }
   };
 
+  // ─── 042a handlers ─────────────────────────────────────────────
+
+  const handleReworkClick = (version: SceneVersion) => {
+    setReworkingVersion(version);
+    setReworkReason('');
+    setReworkError(null);
+  };
+
+  const handleReworkConfirm = async () => {
+    if (!reworkingVersion || !previewingScene || !reworkReason.trim()) return;
+
+    setReworkSubmitting(true);
+    setReworkError(null);
+
+    try {
+      const response = await apiClient.reworkSceneVersion(previewingScene.id, {
+        scene_version_id: reworkingVersion.id,
+        change_reason: reworkReason.trim(),
+        project_id: projectId,
+        episode_id: episodeId,
+      });
+      setReworkingVersion(null);
+      setReworkSuccess(response);
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error: unknown) {
+      console.error('Failed to rework version:', error);
+      const errorMessage = error instanceof Error ? error.message : '返修失败';
+      setReworkError(errorMessage);
+    } finally {
+      setReworkSubmitting(false);
+    }
+  };
+
+  const handleDiffToggle = () => {
+    if (diffMode) {
+      setDiffMode(false);
+      setVersionDiff(null);
+      setDiffVersionAId(null);
+      setDiffVersionBId(null);
+    } else {
+      setDiffMode(true);
+      // 默认选 locked 和最新版，或前两个版本
+      if (sceneVersions && sceneVersions.length >= 2) {
+        const lockedV = sceneVersions.find(v => v.id === previewingScene?.locked_version_id);
+        setDiffVersionAId(lockedV?.id || sceneVersions[0].id);
+        setDiffVersionBId(sceneVersions[sceneVersions.length - 1].id);
+      } else if (sceneVersions && sceneVersions.length === 1) {
+        setDiffVersionAId(sceneVersions[0].id);
+        setDiffVersionBId(null);
+      }
+    }
+  };
+
+  const handleDiffRun = async () => {
+    if (!previewingScene || !diffVersionAId || !diffVersionBId) return;
+
+    setLoadingDiff(true);
+    setDiffError(null);
+    setVersionDiff(null);
+
+    try {
+      const result = await apiClient.getSceneVersionDiff(
+        previewingScene.id,
+        diffVersionAId,
+        diffVersionBId,
+      );
+      setVersionDiff(result);
+    } catch (error: unknown) {
+      console.error('Failed to load version diff:', error);
+      const errorMessage = error instanceof Error ? error.message : '版本对比失败';
+      setDiffError(errorMessage);
+    } finally {
+      setLoadingDiff(false);
+    }
+  };
+
+  const handleSwitchLockedClick = () => {
+    if (!previewingScene || !selectedVersion) return;
+    setSwitchingLocked(previewingScene);
+    setSwitchError(null);
+  };
+
+  const handleSwitchLockedConfirm = async () => {
+    if (!switchingLocked || !selectedVersion) return;
+
+    setSwitchSubmitting(true);
+    setSwitchError(null);
+
+    try {
+      const response = await apiClient.switchLockedVersion(switchingLocked.id, {
+        scene_version_id: selectedVersion.id,
+        force: true,
+      });
+      setSwitchingLocked(null);
+      setSwitchSuccess(response);
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error: unknown) {
+      console.error('Failed to switch locked version:', error);
+      const errorMessage = error instanceof Error ? error.message : '切换失败';
+      setSwitchError(errorMessage);
+    } finally {
+      setSwitchSubmitting(false);
+    }
+  };
+
+  // ─── 042b handlers: subtitle + audio mix ─────────────────
+
+  const handleLoadSubtitle = async () => {
+    if (!previewingScene || !selectedVersion) return;
+    setLoadingSubtitle(true);
+    setSubtitleError(null);
+    try {
+      const data = await apiClient.getSceneSubtitle(previewingScene.id, selectedVersion.id);
+      setSubtitleCues(data.cues);
+    } catch (error: unknown) {
+      console.error('Failed to load subtitle:', error);
+      setSubtitleError(error instanceof Error ? error.message : '加载字幕失败');
+    } finally {
+      setLoadingSubtitle(false);
+    }
+  };
+
+  const handleSubtitleCueChange = (index: number, field: keyof SubtitleCue, value: string | number) => {
+    setSubtitleCues(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c));
+  };
+
+  const handleAddSubtitleCue = () => {
+    const lastCue = subtitleCues[subtitleCues.length - 1];
+    const startTime = lastCue ? lastCue.end_time : 0;
+    setSubtitleCues(prev => [...prev, {
+      index: prev.length,
+      start_time: startTime,
+      end_time: startTime + 3,
+      text: '',
+    }]);
+  };
+
+  const handleRemoveSubtitleCue = (index: number) => {
+    setSubtitleCues(prev => prev.filter((_, i) => i !== index).map((c, i) => ({ ...c, index: i })));
+  };
+
+  const handleSaveSubtitle = async () => {
+    if (!previewingScene || !selectedVersion) return;
+    setSubtitleSaving(true);
+    setSubtitleError(null);
+    try {
+      await apiClient.updateSceneSubtitle(previewingScene.id, selectedVersion.id, {
+        cues: subtitleCues,
+      });
+      setEditingSubtitle(false);
+    } catch (error: unknown) {
+      console.error('Failed to save subtitle:', error);
+      setSubtitleError(error instanceof Error ? error.message : '保存字幕失败');
+    } finally {
+      setSubtitleSaving(false);
+    }
+  };
+
+  const handleLoadAudioMix = async () => {
+    if (!previewingScene || !selectedVersion) return;
+    setLoadingAudioMix(true);
+    setAudioMixError(null);
+    try {
+      const data = await apiClient.getSceneAudioMix(previewingScene.id, selectedVersion.id);
+      setAudioMixData(data);
+      setAudioMixForm({
+        voice_volume: data.voice_volume,
+        bgm_volume: data.bgm_volume,
+        bgm_fade_in: data.bgm_fade_in,
+        bgm_fade_out: data.bgm_fade_out,
+      });
+    } catch (error: unknown) {
+      console.error('Failed to load audio mix:', error);
+      setAudioMixError(error instanceof Error ? error.message : '加载混音参数失败');
+    } finally {
+      setLoadingAudioMix(false);
+    }
+  };
+
+  const handleSaveAudioMix = async () => {
+    if (!previewingScene || !selectedVersion) return;
+    setAudioMixSaving(true);
+    setAudioMixError(null);
+    try {
+      const data = await apiClient.updateSceneAudioMix(previewingScene.id, selectedVersion.id, audioMixForm);
+      setAudioMixData(data);
+      setEditingAudioMix(false);
+    } catch (error: unknown) {
+      console.error('Failed to save audio mix:', error);
+      setAudioMixError(error instanceof Error ? error.message : '保存混音参数失败');
+    } finally {
+      setAudioMixSaving(false);
+    }
+  };
+
+  const renderSubtitlePanel = () => {
+    if (!selectedVersion) return null;
+    return (
+      <GlassSurface variant="panel" className="p-4 mt-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-xs text-zinc-500 font-medium">📝 字幕编辑</div>
+          <div className="flex items-center gap-2">
+            {editingSubtitle ? (
+              <>
+                <button
+                  onClick={() => { setEditingSubtitle(false); handleLoadSubtitle(); }}
+                  className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors"
+                  disabled={subtitleSaving}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSaveSubtitle}
+                  className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+                  disabled={subtitleSaving}
+                >
+                  {subtitleSaving ? '保存中...' : '保存'}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => { setEditingSubtitle(true); }}
+                className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors"
+              >
+                编辑
+              </button>
+            )}
+          </div>
+        </div>
+        {loadingSubtitle ? (
+          <div className="text-sm text-zinc-500">加载中...</div>
+        ) : subtitleError ? (
+          <div className="text-sm text-red-400">{subtitleError}</div>
+        ) : subtitleCues.length === 0 ? (
+          <div className="text-sm text-zinc-500">
+            暂无字幕
+            {editingSubtitle && (
+              <button onClick={handleAddSubtitleCue} className="ml-2 text-blue-400 hover:text-blue-300">
+                + 添加
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {subtitleCues.map((cue, idx) => (
+              <div key={idx} className="flex items-start gap-2 rounded bg-zinc-900/60 p-2 text-xs">
+                <div className="flex-shrink-0 w-6 h-6 rounded bg-zinc-800 flex items-center justify-center text-zinc-400">
+                  {cue.index + 1}
+                </div>
+                <div className="flex-1 grid grid-cols-3 gap-1 items-center">
+                  {editingSubtitle ? (
+                    <>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        value={cue.start_time}
+                        onChange={(e) => handleSubtitleCueChange(idx, 'start_time', parseFloat(e.target.value) || 0)}
+                        className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded px-1.5 py-0.5 w-full"
+                        placeholder="开始"
+                      />
+                      <input
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        value={cue.end_time}
+                        onChange={(e) => handleSubtitleCueChange(idx, 'end_time', parseFloat(e.target.value) || 0)}
+                        className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded px-1.5 py-0.5 w-full"
+                        placeholder="结束"
+                      />
+                      <input
+                        type="text"
+                        value={cue.text}
+                        onChange={(e) => handleSubtitleCueChange(idx, 'text', e.target.value)}
+                        className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded px-1.5 py-0.5 w-full"
+                        placeholder="字幕文本"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-zinc-400">{cue.start_time.toFixed(1)}s</span>
+                      <span className="text-zinc-400">{cue.end_time.toFixed(1)}s</span>
+                      <span className="text-zinc-300">{cue.text}</span>
+                    </>
+                  )}
+                </div>
+                {editingSubtitle && (
+                  <button
+                    onClick={() => handleRemoveSubtitleCue(idx)}
+                    className="flex-shrink-0 text-red-400 hover:text-red-300 text-xs px-1"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            {editingSubtitle && (
+              <button onClick={handleAddSubtitleCue} className="text-xs text-blue-400 hover:text-blue-300 mt-1">
+                + 添加字幕
+              </button>
+            )}
+          </div>
+        )}
+      </GlassSurface>
+    );
+  };
+
+  const renderAudioMixPanel = () => {
+    if (!selectedVersion) return null;
+    return (
+      <GlassSurface variant="panel" className="p-4 mt-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-xs text-zinc-500 font-medium">🎵 音频混音</div>
+          <div className="flex items-center gap-2">
+            {editingAudioMix ? (
+              <>
+                <button
+                  onClick={() => { setEditingAudioMix(false); handleLoadAudioMix(); }}
+                  className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors"
+                  disabled={audioMixSaving}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSaveAudioMix}
+                  className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+                  disabled={audioMixSaving}
+                >
+                  {audioMixSaving ? '保存中...' : '保存'}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => { setEditingAudioMix(true); }}
+                className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors"
+              >
+                编辑
+              </button>
+            )}
+          </div>
+        </div>
+        {loadingAudioMix ? (
+          <div className="text-sm text-zinc-500">加载中...</div>
+        ) : audioMixError ? (
+          <div className="text-sm text-red-400">{audioMixError}</div>
+        ) : audioMixData ? (
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            {(['voice_volume', 'bgm_volume', 'bgm_fade_in', 'bgm_fade_out'] as const).map((key) => {
+              const labels: Record<string, string> = {
+                voice_volume: '人声音量',
+                bgm_volume: 'BGM 音量',
+                bgm_fade_in: 'BGM 淡入',
+                bgm_fade_out: 'BGM 淡出',
+              };
+              return (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">{labels[key]}</span>
+                  {editingAudioMix ? (
+                    <input
+                      type="number"
+                      step="0.1"
+                      min={0}
+                      max={2}
+                      value={audioMixForm[key]}
+                      onChange={(e) => setAudioMixForm({ ...audioMixForm, [key]: parseFloat(e.target.value) || 0 })}
+                      className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded px-1.5 py-0.5 w-20 text-right"
+                    />
+                  ) : (
+                    <span className="text-xs text-zinc-300">{audioMixData[key]}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-sm text-zinc-500">暂无混音参数</div>
+        )}
+      </GlassSurface>
+    );
+  };
+
   const renderVersionDetails = () => {
     if (!selectedVersion) return null;
 
     const v = selectedVersion;
+    const versionFallbackRecords = versionTree?.versions.find((version) => version.id === v.id)?.fallback_records ?? [];
+    const providerPath = [
+      typeof v.model_bundle?.primary_provider === 'string' ? v.model_bundle.primary_provider : null,
+      typeof v.model_bundle?.provider === 'string' ? v.model_bundle.provider : null,
+      typeof v.model_bundle?.fallback_provider === 'string' ? v.model_bundle.fallback_provider : null,
+    ].filter(Boolean).join(' → ');
 
     return (
       <GlassSurface variant="panel" className="p-4 mt-4">
@@ -878,6 +1455,23 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
             <span className="text-zinc-300">
               {v.cost_actual != null ? `¥${v.cost_actual.toFixed(2)}` : '未知'}
             </span>
+          </div>
+
+          <div className="flex justify-between items-baseline">
+            <span className="text-zinc-500">变更原因</span>
+            <span className="text-zinc-300 text-right max-w-[60%] break-words">{v.change_reason || '—'}</span>
+          </div>
+
+          <div className="flex justify-between items-baseline">
+            <span className="text-zinc-500">Tier</span>
+            <span className="text-zinc-300">
+              {typeof v.model_bundle?.tier === 'string' ? v.model_bundle.tier : '—'}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-baseline">
+            <span className="text-zinc-500">Provider Path</span>
+            <span className="text-zinc-300 text-right max-w-[60%] break-words">{providerPath || '—'}</span>
           </div>
 
           {/* 评分快照 */}
@@ -1046,6 +1640,26 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
               </div>
             </div>
           )}
+
+          <div className="pt-3 border-t border-zinc-800/60">
+            <div className="text-xs text-zinc-500 mb-2 font-medium">Fallback 记录（当前版本）</div>
+            {versionFallbackRecords.length === 0 ? (
+              <div className="text-xs text-zinc-500">当前版本暂无 fallback 记录</div>
+            ) : (
+              <div className="space-y-2">
+                {versionFallbackRecords.map((record, index) => (
+                  <div key={`${record.scene_version_id}-${record.timestamp}-${index}`} className="rounded-lg bg-zinc-900/60 p-3 text-xs text-zinc-300">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <GlassChip tone="warning" className="text-xs">{record.from_tier} → {record.to_tier}</GlassChip>
+                      <span className="text-zinc-500">{record.from_provider} → {record.to_provider}</span>
+                    </div>
+                    <div className="text-zinc-400">原因：{record.reason || '—'}</div>
+                    <div className="text-zinc-500 mt-1">触发 Gate：{record.trigger_gate || '—'} · {formatDateTime(record.timestamp)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </GlassSurface>
     );
@@ -1353,6 +1967,8 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
                 {renderVersionSelector()}
                 {renderPreviewContent()}
                 {renderRecentJobs()}
+                {renderSubtitlePanel()}
+                {renderAudioMixPanel()}
               </div>
             </GlassSurface>
           </div>
@@ -1659,6 +2275,196 @@ export function SceneList({ scenes, projectId, episodeId }: SceneListProps) {
             >
               查看任务
             </button>
+          </GlassSurface>
+        </div>
+      )}
+
+      {/* ─── 042a: Version Diff Panel ─── */}
+      {diffMode && selectedVersion && sceneVersions && sceneVersions.length >= 2 && (
+        <GlassSurface variant="panel" className="p-4 mt-4">
+          <div className="text-xs text-zinc-500 mb-3 font-medium">版本对比 (042a)</div>
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <select
+              value={diffVersionAId || ''}
+              onChange={(e) => setDiffVersionAId(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded px-2 py-1.5"
+            >
+              {sceneVersions.map((v) => (
+                <option key={v.id} value={v.id}>v{v.version_no} ({v.status})</option>
+              ))}
+            </select>
+            <span className="text-xs text-zinc-500">vs</span>
+            <select
+              value={diffVersionBId || ''}
+              onChange={(e) => setDiffVersionBId(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded px-2 py-1.5"
+            >
+              {sceneVersions.map((v) => (
+                <option key={v.id} value={v.id}>v{v.version_no} ({v.status})</option>
+              ))}
+            </select>
+            <button
+              onClick={handleDiffRun}
+              disabled={!diffVersionAId || !diffVersionBId || diffVersionAId === diffVersionBId || loadingDiff}
+              className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingDiff ? '对比中...' : '运行对比'}
+            </button>
+          </div>
+          {diffError && <div className="text-xs text-red-400 mb-2">{diffError}</div>}
+          {versionDiff && (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              <div className="text-xs text-zinc-400 mb-1">变更字段 ({versionDiff.changed_fields.length})</div>
+              {versionDiff.diffs.filter(d => d.changed).map((d) => (
+                <div key={d.field} className="rounded bg-zinc-900/60 p-2 text-xs">
+                  <div className="text-zinc-300 font-medium mb-1">{d.label}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="text-zinc-500">v{versionDiff.version_a.version_no}</div>
+                      <div className="text-zinc-400 break-all max-h-20 overflow-y-auto">
+                        {typeof d.value_a === 'object' ? JSON.stringify(d.value_a) : String(d.value_a ?? '—')}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-zinc-500">v{versionDiff.version_b.version_no}</div>
+                      <div className="text-zinc-400 break-all max-h-20 overflow-y-auto">
+                        {typeof d.value_b === 'object' ? JSON.stringify(d.value_b) : String(d.value_b ?? '—')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {versionDiff.changed_fields.length === 0 && (
+                <div className="text-xs text-zinc-500">两个版本无差异</div>
+              )}
+            </div>
+          )}
+        </GlassSurface>
+      )}
+
+      {/* ─── 042a: Rework Confirmation Modal ─── */}
+      {reworkingVersion && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setReworkingVersion(null)}
+        >
+          <div
+            className="w-full max-w-md"
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          >
+            <GlassSurface variant="modal" className="w-full">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-zinc-100">局部返修</h3>
+                <p className="text-sm text-zinc-500 mt-2">
+                  基于版本 v{reworkingVersion.version_no} 创建新版本：
+                </p>
+                <div className="mt-3 p-3 bg-zinc-800/50 rounded">
+                  <p className="text-sm text-zinc-300">
+                    {previewingScene?.title || `场景 ${previewingScene?.scene_no}`} · 版本 {reworkingVersion.version_no}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    状态：<VersionStatusBadge status={reworkingVersion.status} />
+                  </p>
+                </div>
+              </div>
+              <div className="border-t border-zinc-700 pt-4 space-y-3">
+                <GlassField label="返修原因">
+                  <GlassInput
+                    value={reworkReason}
+                    onChange={(e) => setReworkReason(e.target.value)}
+                    placeholder="例如：角色面部不一致，需要修正"
+                    disabled={reworkSubmitting}
+                  />
+                </GlassField>
+                {reworkError && <div className="text-sm text-red-400">{reworkError}</div>}
+                <div className="flex justify-end gap-3 pt-2">
+                  <GlassButton variant="secondary" onClick={() => setReworkingVersion(null)} disabled={reworkSubmitting}>
+                    取消
+                  </GlassButton>
+                  <GlassButton
+                    variant="primary"
+                    onClick={handleReworkConfirm}
+                    loading={reworkSubmitting}
+                    disabled={!reworkReason.trim()}
+                  >
+                    确认返修
+                  </GlassButton>
+                </div>
+              </div>
+            </GlassSurface>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 042a: Switch Locked Confirmation Modal ─── */}
+      {switchingLocked && selectedVersion && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setSwitchingLocked(null)}
+        >
+          <div
+            className="w-full max-w-md"
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          >
+            <GlassSurface variant="modal" className="w-full">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-zinc-100">切换锁定版本</h3>
+                <p className="text-sm text-zinc-500 mt-2">
+                  将锁定版本从当前切换到版本 {selectedVersion.version_no}：
+                </p>
+                <div className="mt-3 p-3 bg-zinc-800/50 rounded">
+                  <p className="text-sm text-zinc-300">
+                    {switchingLocked.title || `场景 ${switchingLocked.scene_no}`} · v{selectedVersion.version_no}
+                  </p>
+                  <p className="text-xs text-orange-400 mt-1">
+                    ⚠️ 此操作将强制替换当前锁定版本
+                  </p>
+                </div>
+              </div>
+              <div className="border-t border-zinc-700 pt-4 space-y-3">
+                {switchError && <div className="text-sm text-red-400">{switchError}</div>}
+                <div className="flex justify-end gap-3 pt-2">
+                  <GlassButton variant="secondary" onClick={() => setSwitchingLocked(null)} disabled={switchSubmitting}>
+                    取消
+                  </GlassButton>
+                  <GlassButton variant="primary" onClick={handleSwitchLockedConfirm} loading={switchSubmitting}>
+                    确认切换
+                  </GlassButton>
+                </div>
+              </div>
+            </GlassSurface>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 042a: Rework Success Toast ─── */}
+      {reworkSuccess && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4">
+          <GlassSurface variant="elevated" className="p-4 flex items-center gap-3">
+            <GlassChip tone="success">✓</GlassChip>
+            <div className="flex flex-col flex-1">
+              <span className="text-sm font-medium text-zinc-100">{reworkSuccess.message}</span>
+              <span className="text-xs text-zinc-500">新版本 ID：{reworkSuccess.scene_version_id?.slice(0, 8)} · 任务 ID：{reworkSuccess.job_id.slice(0, 8)}</span>
+            </div>
+            <button
+              onClick={() => handleViewJob(reworkSuccess.job_id)}
+              className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors"
+            >
+              查看任务
+            </button>
+          </GlassSurface>
+        </div>
+      )}
+
+      {/* ─── 042a: Switch Locked Success Toast ─── */}
+      {switchSuccess && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4">
+          <GlassSurface variant="elevated" className="p-4 flex items-center gap-3">
+            <GlassChip tone="success">✓</GlassChip>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-zinc-100">锁定版本已切换</span>
+              <span className="text-xs text-zinc-500">新锁定：{switchSuccess.locked_version_id.slice(0, 8)}</span>
+            </div>
           </GlassSurface>
         </div>
       )}
