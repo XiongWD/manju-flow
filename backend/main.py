@@ -21,6 +21,8 @@ from routers import (
     jobs_router,
     workspace_router,
     files_router,
+    story_bibles_router,
+    characters_router,
 )
 
 # ── WebSocket 连接池 ──
@@ -100,6 +102,8 @@ app.include_router(knowledge_router)
 app.include_router(jobs_router)
 app.include_router(workspace_router)
 app.include_router(files_router)
+app.include_router(story_bibles_router)
+app.include_router(characters_router)
 
 
 # WebSocket 升级版本

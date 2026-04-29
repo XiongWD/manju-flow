@@ -254,7 +254,7 @@ function RenderQueueContent() {
   }
 
   return (
-    <div className="p-6 md:p-8 space-y-12">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6 space-y-6">
       <PageHeader
         title="渲染队列"
         description="集中查看场景生成任务、处理进度与重试状态。"

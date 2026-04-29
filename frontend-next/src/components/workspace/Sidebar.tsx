@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -18,14 +19,21 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+interface NavItem {
+  to: string
+  icon: React.ElementType
+  name: string
+  disabled?: boolean
+}
+
 /** 导航项定义（中文显示名） */
-const navGroups = [
+const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: '生产',
     items: [
       { to: '/workspace', icon: LayoutDashboard, name: '仪表盘' },
       { to: '/workspace/projects', icon: FolderKanban, name: '项目' },
-      { to: '#', icon: Clapperboard, name: '分镜编辑器', disabled: true },
+      { to: '/workspace/shots', icon: Clapperboard, name: '分镜编辑器' },
       { to: '/workspace/render', icon: Cpu, name: '渲染队列' },
       { to: '/workspace/qa', icon: ShieldCheck, name: 'QA 中心' },
     ],
@@ -33,10 +41,10 @@ const navGroups = [
   {
     label: '管理',
     items: [
-      { to: '#', icon: BookOpen, name: '故事与角色', disabled: true },
+      { to: '/workspace/story', icon: BookOpen, name: '故事与角色' },
       { to: '/workspace/assets', icon: Image, name: '资产浏览' },
-      { to: '/workspace/delivery', icon: Package, name: '剪辑与交付', disabled: true },
-      { to: '/workspace/analytics', icon: BarChart3, name: '数据分析', disabled: true },
+      { to: '/workspace/delivery', icon: Package, name: '剪辑与交付' },
+      { to: '/workspace/analytics', icon: BarChart3, name: '数据分析' },
     ],
   },
   {
@@ -67,7 +75,7 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
           </div>
           {!collapsed && (
             <span className="font-display text-[18px] font-semibold tracking-[-0.02em] text-white">
-              ArcLine Studio
+              ArcLine 工作台
             </span>
           )}
           </div>
@@ -96,7 +104,9 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
             )}
             {group.items.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.to
+              const isActive = item.to === '/workspace'
+                ? pathname === '/workspace'
+                : pathname.startsWith(item.to)
 
               /* 禁用项 — 未开放感，不是坏掉感 */
               if (item.disabled) {
@@ -116,7 +126,7 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
               }
               return (
                 <Link
-                  key={item.to}
+                  key={`${group.label}-${item.name}-${item.to}`}
                   href={item.to}
                   className={cn(
                     `flex items-center rounded-lg px-3 py-2.5 text-[14px] transition-all duration-200 ease-out relative ${collapsed ? 'justify-center' : 'gap-3.5'}`,
@@ -147,7 +157,7 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
               v0.1.0
             </span>
             <span className="text-[11px] text-white/15">
-              ArcLine
+              工作台
             </span>
           </div>
         </div>

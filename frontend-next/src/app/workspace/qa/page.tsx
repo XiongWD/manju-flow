@@ -116,7 +116,7 @@ export default function QAPage() {
   }
 
   return (
-    <div className="p-6 md:p-8 space-y-12">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6 space-y-6">
       <PageHeader title="质检中心" description="集中查看质检记录、问题清单与门禁结果。" />
 
       {/* Stats Cards */}

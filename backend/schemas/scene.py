@@ -20,6 +20,7 @@ class SceneUpdate(BaseModel):
     duration: Optional[float] = Field(None, description="时长（秒）")
     status: Optional[str] = Field(None, max_length=32, description="状态")
     locked_version_id: Optional[str] = Field(None, max_length=32, description="锁定版本 ID")
+    character_ids: Optional[List[str]] = Field(None, description="关联角色 ID 列表")
 
 
 class SceneRead(BaseModel):
@@ -30,6 +31,7 @@ class SceneRead(BaseModel):
     duration: Optional[float] = None
     status: str
     locked_version_id: Optional[str] = None
+    character_ids: List[str] = Field(default_factory=list, description="关联角色 ID 列表")
     created_at: datetime
     updated_at: datetime
 
@@ -177,6 +179,32 @@ class SwitchLockedVersionResponse(BaseModel):
     locked_version_id: str
     previous_locked_version_id: Optional[str] = None
     status: str
+
+
+# ─── 分镜增强: 批量排序 + 批量删除 ──────────────────────
+
+
+class SceneReorderRequest(BaseModel):
+    """批量重排序请求 — 传入 scene_id 列表，按列表顺序重排 scene_no"""
+    scene_ids: List[str] = Field(..., min_length=1, description="场景 ID 列表，按目标顺序排列")
+
+
+class SceneBatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+    scene_ids: List[str] = Field(..., min_length=1, description="要删除的场景 ID 列表")
+
+
+class SceneBatchUpdateStatusRequest(BaseModel):
+    """批量修改状态请求"""
+    scene_ids: List[str] = Field(..., min_length=1, description="场景 ID 列表")
+    status: str = Field(..., min_length=1, max_length=32, description="目标状态")
+
+
+class SceneBatchUpdateDurationRequest(BaseModel):
+    """批量调整时长请求"""
+    scene_ids: List[str] = Field(..., min_length=1, description="场景 ID 列表")
+    mode: str = Field("set", description="调整模式: set / add / multiply")
+    value: float = Field(..., description="时长值（秒），mode=set 时为绝对值，mode=add 时为增量，mode=multiply 时为倍率")
 
 
 # ─── 042b: 字幕编辑 + 音频混音编辑最小闭环 ──────────────────

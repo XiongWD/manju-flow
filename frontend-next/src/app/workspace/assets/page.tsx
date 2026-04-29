@@ -453,7 +453,7 @@ function AssetHubContent() {
 
   // ── Render ──
   return (
-    <div className="space-y-6 p-6">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6 space-y-6">
       <PageHeader
         title="资产库"
         description={urlProjectId ? `管理项目资产，支持按类型、归属、项目筛选。当前项目：${urlProjectId}` : '管理项目资产，支持按类型、归属、项目筛选。'}

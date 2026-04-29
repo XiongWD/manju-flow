@@ -186,6 +186,7 @@ export interface Scene {
   duration?: number;
   status: string;
   locked_version_id?: string;
+  character_ids?: string[];
   created_at: string;
   updated_at: string;
   latest_version?: SceneVersion;
@@ -490,6 +491,114 @@ export interface AssetPreviewResponse {
   };
 }
 
+export interface StoryBibleCreate {
+  project_id: string;
+  title?: string;
+  summary?: string;
+  theme?: string;
+  conflict?: string;
+  content?: string;
+  beat_sheet?: Record<string, unknown>;
+}
+
+export interface StoryBibleUpdate {
+  title?: string;
+  summary?: string;
+  theme?: string;
+  conflict?: string;
+  content?: string;
+  beat_sheet?: Record<string, unknown>;
+  version?: number;
+}
+
+export interface StoryBible {
+  id: string;
+  project_id: string;
+  title?: string;
+  summary?: string;
+  theme?: string;
+  conflict?: string;
+  content?: string;
+  beat_sheet?: Record<string, unknown>;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CharacterCreate {
+  project_id: string;
+  name: string;
+  role_type?: string;
+  description?: string;
+  voice_profile?: Record<string, unknown>;
+  canonical_asset_id?: string;
+  episode_ids?: string[];
+}
+
+export interface CharacterUpdate {
+  name?: string;
+  role_type?: string;
+  description?: string;
+  voice_profile?: Record<string, unknown>;
+  canonical_asset_id?: string;
+  episode_ids?: string[];
+}
+
+export interface Character {
+  id: string;
+  project_id: string;
+  name: string;
+  role_type?: string;
+  description?: string;
+  voice_profile?: Record<string, unknown>;
+  canonical_asset_id?: string;
+  episode_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Delivery Package types ─────────────────────────────────────
+
+export interface DeliveryPackage {
+  id: string;
+  episode_id: string;
+  package_type: 'video' | 'audio' | 'subtitle' | 'bundle';
+  status: 'building' | 'ready' | 'failed' | 'expired';
+  asset_id?: string;
+  file_size?: number;
+  metadata_json?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeliveryPackageCreate {
+  episode_id: string;
+  package_type: 'video' | 'audio' | 'subtitle' | 'bundle';
+}
+
+// ── Publish Job types ──────────────────────────────────────────
+
+export interface PublishJob {
+  id: string;
+  project_id: string;
+  episode_id?: string;
+  platform: string;
+  status: 'queued' | 'publishing' | 'published' | 'failed' | 'cancelled';
+  delivery_package_id?: string;
+  external_id?: string;
+  external_url?: string;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublishJobCreate {
+  project_id: string;
+  episode_id?: string;
+  platform: string;
+  delivery_package_id?: string;
+}
+
 // ── API Client ──────────────────────────────────────────────
 
 class ApiClient {
@@ -757,6 +866,7 @@ class ApiClient {
     duration?: number;
     status?: string;
     locked_version_id?: string;
+    character_ids?: string[];
   }): Promise<Scene> {
     return this.request<Scene>(`scenes/${sceneId}`, {
       method: 'PATCH',
@@ -766,6 +876,26 @@ class ApiClient {
 
   async deleteScene(sceneId: string): Promise<void> {
     return this.delete<void>(`scenes/${sceneId}`);
+  }
+
+  async listScenesByCharacter(characterId: string): Promise<Scene[]> {
+    return this.get<Scene[]>(`scenes/by-character/${characterId}`);
+  }
+
+  async reorderScenes(sceneIds: string[]): Promise<Scene[]> {
+    return this.post<Scene[]>('scenes/batch/reorder', { scene_ids: sceneIds });
+  }
+
+  async batchDeleteScenes(sceneIds: string[]): Promise<{ deleted: string[]; not_found: string[]; count: number }> {
+    return this.post<{ deleted: string[]; not_found: string[]; count: number }>('scenes/batch/delete', { scene_ids: sceneIds });
+  }
+
+  async batchUpdateSceneStatus(sceneIds: string[], status: string): Promise<Scene[]> {
+    return this.post<Scene[]>('scenes/batch/update-status', { scene_ids: sceneIds, status });
+  }
+
+  async batchUpdateSceneDuration(sceneIds: string[], mode: 'set' | 'add' | 'multiply', value: number): Promise<Scene[]> {
+    return this.post<Scene[]>('scenes/batch/update-duration', { scene_ids: sceneIds, mode, value });
   }
 
   async retryScene(sceneId: string, projectId: string, episodeId?: string): Promise<{
@@ -943,6 +1073,104 @@ class ApiClient {
 
   async getEpisodeQAEvidenceAssets(episodeId: string): Promise<QAEvidenceAssets> {
     return this.get<QAEvidenceAssets>(`episodes/${episodeId}/qa-evidence-assets`);
+  }
+
+  // ── Story Bible API ────────────────────────────────────────
+
+  async listStoryBibles(projectId: string): Promise<StoryBible[]> {
+    const query = new URLSearchParams({ project_id: projectId });
+    return this.get<StoryBible[]>(`story-bibles/?${query.toString()}`);
+  }
+
+  async getStoryBible(storyBibleId: string): Promise<StoryBible> {
+    return this.get<StoryBible>(`story-bibles/${storyBibleId}`);
+  }
+
+  async createStoryBible(data: StoryBibleCreate): Promise<StoryBible> {
+    return this.post<StoryBible>('story-bibles/', data);
+  }
+
+  async updateStoryBible(storyBibleId: string, data: StoryBibleUpdate): Promise<StoryBible> {
+    return this.request<StoryBible>(`story-bibles/${storyBibleId}`, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async deleteStoryBible(storyBibleId: string): Promise<void> {
+    return this.delete<void>(`story-bibles/${storyBibleId}`);
+  }
+
+  // ── Character API ──────────────────────────────────────────
+
+  async listCharacters(projectId: string): Promise<Character[]> {
+    const query = new URLSearchParams({ project_id: projectId });
+    return this.get<Character[]>(`characters/?${query.toString()}`);
+  }
+
+  async getCharacter(characterId: string): Promise<Character> {
+    return this.get<Character>(`characters/${characterId}`);
+  }
+
+  async createCharacter(data: CharacterCreate): Promise<Character> {
+    return this.post<Character>('characters/', data);
+  }
+
+  async updateCharacter(characterId: string, data: CharacterUpdate): Promise<Character> {
+    return this.request<Character>(`characters/${characterId}`, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async deleteCharacter(characterId: string): Promise<void> {
+    return this.delete<void>(`characters/${characterId}`);
+  }
+
+  async listCharactersByEpisode(episodeId: string): Promise<Character[]> {
+    return this.get<Character[]>(`characters/by-episode/${episodeId}`);
+  }
+
+  // ── Delivery Package API ───────────────────────────────────
+
+  async listDeliveryPackages(params?: {
+    episode_id?: string;
+    limit?: number;
+  }): Promise<DeliveryPackage[]> {
+    const query = new URLSearchParams();
+    if (params?.episode_id) query.set('episode_id', params.episode_id);
+    if (params?.limit) query.set('limit', params.limit.toString());
+    return this.get<DeliveryPackage[]>(`delivery-packages/?${query.toString()}`);
+  }
+
+  async createDeliveryPackage(data: DeliveryPackageCreate): Promise<DeliveryPackage> {
+    return this.post<DeliveryPackage>('delivery-packages/', data);
+  }
+
+  async getDeliveryPackage(packageId: string): Promise<DeliveryPackage> {
+    return this.get<DeliveryPackage>(`delivery-packages/${packageId}`);
+  }
+
+  // ── Publish Job API ────────────────────────────────────────
+
+  async listPublishJobs(params?: {
+    project_id?: string;
+    episode_id?: string;
+    limit?: number;
+  }): Promise<PublishJob[]> {
+    const query = new URLSearchParams();
+    if (params?.project_id) query.set('project_id', params.project_id);
+    if (params?.episode_id) query.set('episode_id', params.episode_id);
+    if (params?.limit) query.set('limit', params.limit.toString());
+    return this.get<PublishJob[]>(`publish-jobs/?${query.toString()}`);
+  }
+
+  async createPublishJob(data: PublishJobCreate): Promise<PublishJob> {
+    return this.post<PublishJob>('publish-jobs/', data);
+  }
+
+  async getPublishJob(jobId: string): Promise<PublishJob> {
+    return this.get<PublishJob>(`publish-jobs/${jobId}`);
   }
 }
 

@@ -10,10 +10,13 @@ from .knowledge import router as knowledge_router
 from .jobs import router as jobs_router
 from .workspace import router as workspace_router
 from .files import router as files_router
+from .story_bibles import router as story_bibles_router
+from .characters import router as characters_router
 
 __all__ = [
     "projects_router", "apikeys_router", "episodes_router",
     "scenes_router", "qa_router", "assets_router",
     "publish_router", "analytics_router", "knowledge_router",
     "jobs_router", "workspace_router", "files_router",
+    "story_bibles_router", "characters_router",
 ]

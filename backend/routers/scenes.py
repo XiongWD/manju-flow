@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_db
-from database.models import Scene, SceneVersion
+from database.models import Scene, SceneVersion, SceneCharacter, Character
 from schemas.scene import (
     SceneCreate,
     SceneUpdate,
@@ -25,11 +25,59 @@ from schemas.scene import (
     SubtitleEditResponse,
     AudioMixEditRequest,
     AudioMixEditResponse,
+    SceneReorderRequest,
+    SceneBatchDeleteRequest,
+    SceneBatchUpdateStatusRequest,
+    SceneBatchUpdateDurationRequest,
 )
 from services.pipeline.orchestrator import retry_scene
 from services.pipeline.version_lock import VersionLockService
 
 router = APIRouter(prefix="/api/scenes", tags=["scenes"])
+
+
+async def _load_character_ids(db: AsyncSession, scene_id: str) -> list[str]:
+    """加载场景的关联角色 ID 列表"""
+    result = await db.execute(
+        select(SceneCharacter.character_id)
+        .where(SceneCharacter.scene_id == scene_id)
+    )
+    return [row[0] for row in result.all()]
+
+
+async def _sync_character_ids(
+    db: AsyncSession,
+    scene_id: str,
+    character_ids: list[str] | None,
+) -> None:
+    """同步场景-角色关联（全量替换）"""
+    if character_ids is None:
+        return
+    await db.execute(
+        SceneCharacter.__table__.delete()
+        .where(SceneCharacter.scene_id == scene_id)
+    )
+    if character_ids:
+        await db.execute(
+            SceneCharacter.__table__.insert(),
+            [{"scene_id": scene_id, "character_id": cid} for cid in character_ids],
+        )
+
+
+def _scene_to_read(scene: Scene, character_ids: list[str]) -> dict:
+    """将 Scene ORM 对象 + character_ids 转为 SceneRead 字典"""
+    return {
+        "id": scene.id,
+        "episode_id": scene.episode_id,
+        "scene_no": scene.scene_no,
+        "title": scene.title,
+        "duration": scene.duration,
+        "status": scene.status,
+        "locked_version_id": scene.locked_version_id,
+        "character_ids": character_ids,
+        "created_at": scene.created_at,
+        "updated_at": scene.updated_at,
+    }
 
 
 @router.get("/", response_model=list[SceneRead])
@@ -44,7 +92,11 @@ async def list_scenes(
     q = q.order_by(Scene.scene_no)
     result = await db.execute(q)
     scenes = result.scalars().all()
-    return scenes
+    out = []
+    for s in scenes:
+        cids = await _load_character_ids(db, s.id)
+        out.append(SceneRead(**_scene_to_read(s, cids)))
+    return out
 
 
 @router.post("/", response_model=SceneRead, status_code=status.HTTP_201_CREATED)
@@ -55,6 +107,23 @@ async def create_scene(body: SceneCreate, db: AsyncSession = Depends(get_db)):
     await db.flush()
     await db.refresh(scene)
     return scene
+
+
+@router.get("/by-character/{character_id}", response_model=list[SceneRead])
+async def list_scenes_by_character(character_id: str, db: AsyncSession = Depends(get_db)):
+    """按角色获取关联场景列表"""
+    result = await db.execute(
+        select(Scene)
+        .join(SceneCharacter, SceneCharacter.scene_id == Scene.id)
+        .where(SceneCharacter.character_id == character_id)
+        .order_by(Scene.scene_no)
+    )
+    scenes = result.scalars().all()
+    out = []
+    for s in scenes:
+        cids = await _load_character_ids(db, s.id)
+        out.append(SceneRead(**_scene_to_read(s, cids)))
+    return out
 
 
 @router.get("/{scene_id}", response_model=SceneWithVersionsRead)
@@ -74,6 +143,8 @@ async def get_scene(scene_id: str, db: AsyncSession = Depends(get_db)):
     sv_result = await db.execute(sv_q)
     latest_sv = sv_result.scalar_one_or_none()
 
+    cids = await _load_character_ids(db, scene_id)
+
     return {
         "id": scene.id,
         "episode_id": scene.episode_id,
@@ -82,6 +153,7 @@ async def get_scene(scene_id: str, db: AsyncSession = Depends(get_db)):
         "duration": scene.duration,
         "status": scene.status,
         "locked_version_id": scene.locked_version_id,
+        "character_ids": cids,
         "created_at": scene.created_at,
         "updated_at": scene.updated_at,
         "latest_version": latest_sv,
@@ -98,11 +170,14 @@ async def update_scene(
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
-    for key, value in body.model_dump(exclude_unset=True).items():
+    character_ids = body.character_ids
+    for key, value in body.model_dump(exclude={"character_ids"}, exclude_unset=True).items():
         setattr(scene, key, value)
     await db.flush()
     await db.refresh(scene)
-    return scene
+    await _sync_character_ids(db, scene_id, character_ids)
+    await db.flush()
+    return SceneRead(**_scene_to_read(scene, await _load_character_ids(db, scene_id)))
 
 
 @router.delete("/{scene_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -195,6 +270,102 @@ async def get_scene_fallback_history(
         scene_id=scene_id,
         fallback_records=history,
     )
+
+
+# ─── 分镜增强: 批量排序 + 批量删除 + 批量状态 ──────────────
+
+
+@router.post("/batch/reorder", response_model=list[SceneRead])
+async def reorder_scenes(
+    body: SceneReorderRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """批量重排序场景 scene_no
+
+    按传入的 scene_ids 列表顺序，依次设置 scene_no = 1, 2, 3 ...
+    """
+    results = []
+    for idx, scene_id in enumerate(body.scene_ids, start=1):
+        scene = await db.get(Scene, scene_id)
+        if not scene:
+            raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
+        scene.scene_no = idx
+        await db.flush()
+        await db.refresh(scene)
+        cids = await _load_character_ids(db, scene_id)
+        results.append(SceneRead(**_scene_to_read(scene, cids)))
+    return results
+
+
+@router.post("/batch/delete", status_code=status.HTTP_200_OK)
+async def batch_delete_scenes(
+    body: SceneBatchDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """批量删除场景"""
+    deleted: list[str] = []
+    not_found: list[str] = []
+    for scene_id in body.scene_ids:
+        scene = await db.get(Scene, scene_id)
+        if scene:
+            await db.delete(scene)
+            deleted.append(scene_id)
+        else:
+            not_found.append(scene_id)
+    await db.flush()
+    return {"deleted": deleted, "not_found": not_found, "count": len(deleted)}
+
+
+@router.post("/batch/update-status", response_model=list[SceneRead])
+async def batch_update_scene_status(
+    body: SceneBatchUpdateStatusRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """批量修改场景状态"""
+    results = []
+    for scene_id in body.scene_ids:
+        scene = await db.get(Scene, scene_id)
+        if not scene:
+            raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
+        scene.status = body.status
+        await db.flush()
+        await db.refresh(scene)
+        cids = await _load_character_ids(db, scene_id)
+        results.append(SceneRead(**_scene_to_read(scene, cids)))
+    return results
+
+
+@router.post("/batch/update-duration", response_model=list[SceneRead])
+async def batch_update_scene_duration(
+    body: SceneBatchUpdateDurationRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """批量调整场景时长
+
+    支持三种模式：
+    - set: 将所有选中场景的时长设为固定值
+    - add: 在现有时长基础上增加/减少秒数
+    - multiply: 按倍率缩放现有时长
+    """
+    results = []
+    for scene_id in body.scene_ids:
+        scene = await db.get(Scene, scene_id)
+        if not scene:
+            raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
+        current = scene.duration or 0.0
+        if body.mode == "set":
+            scene.duration = max(0, body.value)
+        elif body.mode == "add":
+            scene.duration = max(0, current + body.value)
+        elif body.mode == "multiply":
+            scene.duration = max(0, current * body.value)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown mode: {body.mode}")
+        await db.flush()
+        await db.refresh(scene)
+        cids = await _load_character_ids(db, scene_id)
+        results.append(SceneRead(**_scene_to_read(scene, cids)))
+    return results
 
 
 # ─── 042a: 局部返修 + locked_version 切换 + version diff ──────────

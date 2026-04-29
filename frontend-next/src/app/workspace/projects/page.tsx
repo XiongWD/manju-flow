@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Search, Plus, FolderKanban, MoreVertical, Pencil, Trash2 } from 'lucide-react'
-import { GlassSurface, GlassButton, GlassInput, GlassModalShell } from '@/components/ui/primitives'
+import { GlassSurface, GlassButton, GlassInput, GlassModalShell, GlassLoadingBlock, GlassToastContainer } from '@/components/ui/primitives'
 import { PageHeader } from '@/components/workspace/PageHeader'
 import { apiClient } from '@/lib/api-client'
 import type { Project, ProjectStatus } from '@/types'
@@ -53,7 +53,7 @@ const gradients = [
 
 export default function ProjectsPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const [pendingEditId, setPendingEditId] = useState<string | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -79,14 +79,20 @@ export default function ProjectsPage() {
   }, [])
 
   useEffect(() => {
-    const editId = searchParams.get('edit')
-    if (!editId || projects.length === 0) return
-    const target = projects.find((p) => p.id === editId)
+    if (typeof window === 'undefined') return
+    const editId = new URLSearchParams(window.location.search).get('edit')
+    setPendingEditId(editId)
+  }, [])
+
+  useEffect(() => {
+    if (!pendingEditId || projects.length === 0) return
+    const target = projects.find((p) => p.id === pendingEditId)
     if (target) {
       openEdit(target)
+      setPendingEditId(null)
       router.replace('/workspace/projects')
     }
-  }, [searchParams, projects])
+  }, [pendingEditId, projects, router])
 
   const fetchProjects = async () => {
     try {
@@ -178,16 +184,7 @@ export default function ProjectsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6">
-      {/* Message toast */}
-      {message && (
-        <div
-          className={`fixed top-4 right-4 z-[200] px-4 py-2 rounded-lg shadow-lg ${
-            message.type === 'success' ? 'bg-green-900/80 text-green-100' : 'bg-red-900/80 text-red-100'
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
+      <GlassToastContainer toasts={message ? [{ id: 'projects-toast', message: message.text, type: message.type === 'success' ? 'success' : 'error' }] : []} />
 
       <PageHeader
         title="项目"
@@ -242,20 +239,18 @@ export default function ProjectsPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="grid grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="aspect-video bg-zinc-900/50 rounded-lg animate-pulse" />
-          ))}
-        </div>
+        <GlassLoadingBlock message="正在加载项目列表…" />
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-28">
-          <span className="text-5xl font-semibold text-zinc-800 mb-4">
-            {search || statusFilter !== 'all' ? '—' : '开始创作'}
-          </span>
-          <span className="text-zinc-500">
-            {search || statusFilter !== 'all' ? '无匹配结果，尝试调整搜索条件' : '创建你的第一个制作项目'}
-          </span>
-        </div>
+        <GlassSurface variant="panel" className="py-16 text-center">
+          <div className="mx-auto max-w-md space-y-2">
+            <h3 className="text-lg font-semibold text-white">
+              {search || statusFilter !== 'all' ? '没有匹配的项目' : '还没有项目'}
+            </h3>
+            <p className="text-sm text-zinc-500">
+              {search || statusFilter !== 'all' ? '尝试调整搜索词或筛选条件。' : '创建你的第一个制作项目，开始进入工作流。'}
+            </p>
+          </div>
+        </GlassSurface>
       ) : (
         <div className="grid grid-cols-3 gap-4">
           {filtered.map((project, idx) => {

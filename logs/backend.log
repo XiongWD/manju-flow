@@ -1,69 +1,264 @@
-INFO:     Started server process [7576]
+INFO:     Started server process [10808]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:33420 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56020 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56030 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56038 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56042 - "GET /api/characters/by-episode/b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56056 - "GET /api/scenes/by-character/fakecharid HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56062 - "GET /api/scenes/?episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45764 - "GET / HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57132 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57146 - "GET /api/projects/94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57160 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53490 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53506 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53514 - "GET /api/story-bibles/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53528 - "GET /api/characters/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53540 - "GET /api/characters/by-episode/b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53546 - "GET /api/scenes/?episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53560 - "GET /api/publish/delivery-packages?episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53566 - "GET /api/publish/jobs?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8&episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47522 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47528 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47540 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36672 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36678 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36684 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36688 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53284 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53300 - "POST /api/projects/ HTTP/1.1" 201 Created
+INFO:     127.0.0.1:53310 - "POST /api/story-bibles/ HTTP/1.1" 201 Created
+INFO:     127.0.0.1:53314 - "PATCH /api/projects/3a3f7fcd66464dac830d94de8d577770 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53324 - "PATCH /api/story-bibles/53eeafea5c6f4bb397c4c49b7946fe5f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53342 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53348 - "POST /api/characters/ HTTP/1.1" 201 Created
+INFO:     127.0.0.1:53356 - "PATCH /api/characters/2f543da4a4764371b6d839247d12e9aa HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53372 - "GET /api/characters/by-episode/b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53386 - "DELETE /api/characters/2f543da4a4764371b6d839247d12e9aa HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:53400 - "DELETE /api/story-bibles/53eeafea5c6f4bb397c4c49b7946fe5f HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:53326 - "DELETE /api/projects/3a3f7fcd66464dac830d94de8d577770 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:59854 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59864 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59878 - "POST /api/characters/ HTTP/1.1" 201 Created
+INFO:     127.0.0.1:59886 - "POST /api/characters/ HTTP/1.1" 201 Created
+INFO:     127.0.0.1:59888 - "POST /api/scenes/ HTTP/1.1" 201 Created
+INFO:     127.0.0.1:59904 - "POST /api/scenes/ HTTP/1.1" 201 Created
+INFO:     127.0.0.1:59920 - "PATCH /api/scenes/0c2cbba13d2343dc996e4e05d2202386 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59922 - "GET /api/scenes/by-character/a77f288e701749d98831cd11d5e87bb0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59928 - "POST /api/scenes/batch/reorder HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59932 - "POST /api/scenes/batch/update-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59942 - "POST /api/scenes/batch/update-duration HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:59950 - "POST /api/scenes/batch/delete HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59954 - "DELETE /api/characters/a77f288e701749d98831cd11d5e87bb0 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:59970 - "DELETE /api/characters/15a8fc15c0ee4bff92f74d13768a7304 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:38880 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38882 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38886 - "GET /api/scenes/?episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38898 - "GET /api/scenes/08b1bef4213b4ebcb0596b66c1e6c490/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38906 - "GET /api/scenes/08b1bef4213b4ebcb0596b66c1e6c490/versions/3cf3a26fb6aa4148b7f7947f0b810d35/subtitle HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38918 - "PATCH /api/scenes/08b1bef4213b4ebcb0596b66c1e6c490/versions/3cf3a26fb6aa4148b7f7947f0b810d35/subtitle HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38928 - "GET /api/scenes/08b1bef4213b4ebcb0596b66c1e6c490/versions/3cf3a26fb6aa4148b7f7947f0b810d35/audio-mix HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38932 - "PATCH /api/scenes/08b1bef4213b4ebcb0596b66c1e6c490/versions/3cf3a26fb6aa4148b7f7947f0b810d35/audio-mix HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38946 - "POST /api/publish/delivery-packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38956 - "POST /api/publish/jobs HTTP/1.1" 200 OK
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [7576]
-INFO:     Started server process [7625]
+INFO:     Finished server process [10808]
+INFO:     Started server process [12401]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:42910 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47566 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47574 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47590 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47606 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47612 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47628 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47640 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47658 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47644 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47662 - "GET /api/jobs/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47670 - "GET /api/jobs/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47692 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47686 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47700 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47716 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32964 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32976 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32978 - "GET /api/projects/e7064d21153b4763876ee598dc7658ba HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32986 - "GET /api/projects/e7064d21153b4763876ee598dc7658ba HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32990 - "GET /api/story-bibles?project_id=e7064d21153b4763876ee598dc7658ba HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:32988 - "GET /api/episodes/?project_id=e7064d21153b4763876ee598dc7658ba HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32998 - "GET /api/characters?project_id=e7064d21153b4763876ee598dc7658ba HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:33000 - "GET /api/story-bibles?project_id=e7064d21153b4763876ee598dc7658ba HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:33016 - "GET /api/characters?project_id=e7064d21153b4763876ee598dc7658ba HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:33028 - "GET /api/episodes/?project_id=e7064d21153b4763876ee598dc7658ba HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33036 - "GET /api/scenes/?episode_id=f9349275d2a546a7a01ef1494fbbae41 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33044 - "GET /api/scenes/?episode_id=f9349275d2a546a7a01ef1494fbbae41 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33048 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33062 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33068 - "GET /api/projects/e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33080 - "GET /api/projects/e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33084 - "GET /api/episodes/?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33090 - "GET /api/story-bibles?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:33098 - "GET /api/characters?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:33106 - "GET /api/episodes/?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33108 - "GET /api/story-bibles?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:33112 - "GET /api/characters?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:33116 - "GET /api/scenes/?episode_id=deea4b95bed640afa0b7aeea251c3372 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53960 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53968 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53972 - "GET /api/projects/e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53988 - "GET /api/projects/e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54008 - "GET /api/story-bibles?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54002 - "GET /api/episodes/?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54022 - "GET /api/characters?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54034 - "GET /api/story-bibles?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54048 - "GET /api/characters?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54060 - "GET /api/episodes/?project_id=e4a9556b102d43948cea30d11796fd97 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54070 - "GET /api/scenes/?episode_id=deea4b95bed640afa0b7aeea251c3372 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54082 - "GET /api/scenes/?episode_id=deea4b95bed640afa0b7aeea251c3372 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54098 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54110 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41246 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41256 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41260 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41262 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56634 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56642 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56656 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56662 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56670 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56674 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58020 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58034 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58036 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58050 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53466 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53474 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53490 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53504 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56510 - "GET /api/projects/94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56516 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56530 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56542 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56558 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56572 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56588 - "GET /api/jobs/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56598 - "GET /api/jobs/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56614 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56624 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56634 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56640 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56648 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56652 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45030 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45046 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45052 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45060 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45772 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45774 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45776 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45788 - "GET /api/projects/ HTTP/1.1" 200 OK
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [7625]
-INFO:     Started server process [7747]
+INFO:     Finished server process [12401]
+INFO:     Started server process [12647]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:38354 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38360 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38374 - "GET /api/jobs/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38388 - "GET /api/jobs/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38396 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38398 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38408 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38410 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35420 - "GET /api/apikeys/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35424 - "GET /api/apikeys/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59232 - "GET /api/apikeys/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59238 - "GET /api/apikeys/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59252 - "GET /api/jobs/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59254 - "GET /api/jobs/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59266 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59270 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59272 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59288 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59292 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59302 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [7747]
-INFO:     Started server process [6650]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:48478 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48488 - "GET /api/jobs/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48492 - "GET /api/jobs/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48500 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48508 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48516 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48530 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48540 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48552 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48560 - "GET /api/jobs/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48576 - "GET /api/jobs/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34218 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34224 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:44064 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:44070 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52132 - "DELETE /api/projects/405617fb44404a70b70c2c3c7098f945 HTTP/1.1" 204 No Content
-INFO:     127.0.0.1:52136 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58790 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:40968 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:40984 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49642 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39962 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39974 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39976 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39986 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40002 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40012 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33088 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33102 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45382 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54384 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54386 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54388 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54390 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54398 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54414 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54418 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54430 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54450 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54438 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54456 - "GET /api/jobs/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54468 - "GET /api/jobs/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54482 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54494 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60420 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60426 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60428 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60442 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54948 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38896 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54434 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54440 - "GET /api/projects/94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54450 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54456 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54466 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54474 - "GET /api/scenes/?episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54488 - "GET /api/projects/94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54490 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54494 - "GET /api/story-bibles?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54508 - "GET /api/characters?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54516 - "GET /api/scenes/?episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37848 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37856 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55408 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55424 - "GET /api/projects/94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55440 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55456 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55470 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55482 - "GET /api/scenes/?episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55496 - "GET /api/projects/94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55516 - "GET /api/story-bibles?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55522 - "GET /api/characters?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55512 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55530 - "GET /api/scenes/?episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55540 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55546 - "GET /api/episodes/?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55558 - "GET /api/scenes/?episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55570 - "GET /api/delivery-packages?episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55562 - "GET /api/scenes/08b1bef4213b4ebcb0596b66c1e6c490/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55578 - "GET /api/publish-jobs?project_id=94d2ab1c2b8d4ca9b48d61b00f6a03a8&episode_id=b1588b47bbe14880808f3d8a6feb98a4 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55582 - "GET /api/scenes/08b1bef4213b4ebcb0596b66c1e6c490/versions/3cf3a26fb6aa4148b7f7947f0b810d35/subtitle HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55584 - "GET /api/scenes/08b1bef4213b4ebcb0596b66c1e6c490/versions/3cf3a26fb6aa4148b7f7947f0b810d35/audio-mix HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49712 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49720 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49718 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49732 - "GET /api/jobs/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49738 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32988 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32994 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32996 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33006 - "GET /api/jobs/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33008 - "GET /api/jobs/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33012 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33028 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33044 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33060 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33066 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33082 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33084 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33094 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37630 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37634 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37648 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37650 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37654 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37670 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37678 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37680 - "GET /api/apikeys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37684 - "GET /api/projects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37692 - "GET /api/projects/ HTTP/1.1" 200 OK

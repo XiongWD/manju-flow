@@ -27,14 +27,11 @@ const statusLabel = (value?: string) => {
 export const dynamic = 'force-dynamic';
 
 async function ProjectDetail({ projectId }: { projectId: string }) {
-  const project = await apiClient.get<Project>(`projects/${projectId}`);
-  const episodes = await apiClient.get<Episode[]>(
-    `episodes/?project_id=${projectId}`
-  );
+  const project = await apiClient.getProject(projectId);
+  const episodes = await apiClient.listEpisodes({ project_id: projectId });
 
   return (
     <div className="space-y-6">
-      {/* Project Info */}
       <GlassSurface variant="elevated" className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -91,7 +88,7 @@ export default async function ProjectDetailPage({
   const { id } = await params;
 
   return (
-    <div className="p-6">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6 space-y-6">
       <div className="mb-6">
         <Link
           href="/workspace/projects"

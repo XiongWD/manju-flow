@@ -16,7 +16,7 @@ export default function WorkspaceSettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('apikeys')
 
   return (
-    <div className="p-6 md:p-8 space-y-12">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6 space-y-6">
       <PageHeader title="工作区设置" description="管理接口密钥、流水线参数与 GPU 资源配置。" />
 
         {/* Tab 切换按钮组 */}

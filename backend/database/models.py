@@ -86,6 +86,9 @@ class StoryBible(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     title: Mapped[Optional[str]] = mapped_column(String(256), comment="标题")
+    summary: Mapped[Optional[str]] = mapped_column(Text, comment="一句话摘要")
+    theme: Mapped[Optional[str]] = mapped_column(String(256), comment="核心主题")
+    conflict: Mapped[Optional[str]] = mapped_column(Text, comment="核心冲突")
     content: Mapped[Optional[str]] = mapped_column(Text, comment="世界观/剧情设定内容")
     beat_sheet: Mapped[Optional[dict]] = mapped_column(JSON, comment="节拍表（JSON）")
     version: Mapped[int] = mapped_column(Integer, default=1)
@@ -112,6 +115,25 @@ class Character(Base):
 
     project: Mapped["Project"] = relationship(back_populates="characters")
     assets: Mapped[list["CharacterAsset"]] = relationship(back_populates="character", cascade="all, delete-orphan")
+    episodes: Mapped[list["Episode"]] = relationship(
+        secondary="character_episodes", back_populates="characters"
+    )
+    scenes: Mapped[list["Scene"]] = relationship(
+        secondary="scene_characters", back_populates="characters"
+    )
+
+
+# ─── 4b. character_episodes (junction) ─────────────────────────────────────
+
+class CharacterEpisode(Base):
+    __tablename__ = "character_episodes"
+
+    character_id: Mapped[str] = mapped_column(
+        ForeignKey("characters.id", ondelete="CASCADE"), primary_key=True
+    )
+    episode_id: Mapped[str] = mapped_column(
+        ForeignKey("episodes.id", ondelete="CASCADE"), primary_key=True
+    )
 
 
 # ─── 5. character_assets ────────────────────────────────────────────────────
@@ -149,6 +171,9 @@ class Episode(Base):
 
     project: Mapped["Project"] = relationship(back_populates="episodes")
     scenes: Mapped[list["Scene"]] = relationship(back_populates="episode", cascade="all, delete-orphan")
+    characters: Mapped[list["Character"]] = relationship(
+        secondary="character_episodes", back_populates="episodes"
+    )
 
 
 # ─── 7. scenes ──────────────────────────────────────────────────────────────
@@ -168,6 +193,22 @@ class Scene(Base):
 
     episode: Mapped["Episode"] = relationship(back_populates="scenes")
     versions: Mapped[list["SceneVersion"]] = relationship(back_populates="scene", cascade="all, delete-orphan")
+    characters: Mapped[list["Character"]] = relationship(
+        secondary="scene_characters", back_populates="scenes"
+    )
+
+
+# ─── 7b. scene_characters (junction) ─────────────────────────────
+
+class SceneCharacter(Base):
+    __tablename__ = "scene_characters"
+
+    scene_id: Mapped[str] = mapped_column(
+        ForeignKey("scenes.id", ondelete="CASCADE"), primary_key=True
+    )
+    character_id: Mapped[str] = mapped_column(
+        ForeignKey("characters.id", ondelete="CASCADE"), primary_key=True
+    )
 
 
 # ─── 8. scene_versions ─────────────────────────────────────────────────────

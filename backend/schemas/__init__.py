@@ -13,6 +13,8 @@ from .delivery import (
 from .publish import (
     PublishJobCreate, PublishJobUpdate, PublishJobRead, PublishJobSummary,
 )
+from .story_bible import StoryBibleCreate, StoryBibleUpdate, StoryBibleRead
+from .character import CharacterCreate, CharacterUpdate, CharacterRead
 
 __all__ = [
     "ProjectCreate", "ProjectUpdate", "ProjectRead",
@@ -26,4 +28,6 @@ __all__ = [
     "DeliveryPackageSummary", "DeliveryPackageWithVariantsRead",
     "PlatformVariantCreate", "PlatformVariantUpdate", "PlatformVariantRead",
     "PublishJobCreate", "PublishJobUpdate", "PublishJobRead", "PublishJobSummary",
+    "StoryBibleCreate", "StoryBibleUpdate", "StoryBibleRead",
+    "CharacterCreate", "CharacterUpdate", "CharacterRead",
 ]

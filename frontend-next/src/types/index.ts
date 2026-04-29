@@ -1,6 +1,14 @@
 // ArcLine shared type definitions
 // Re-exports from api-client.ts + supplemental enum types
 
+import type {
+  VoiceConfig,
+  BGMConfig,
+  MixConfig,
+  EpisodeAudioAssets,
+  QAEvidenceAssets,
+} from '../lib/api-client';
+
 // ── Re-exports from api-client.ts ───────────────────────────────────────
 
 export type {
@@ -56,6 +64,16 @@ export type {
   QAEvidenceAssets,
   RuleExecutionResult,
   RulesReportResponse,
+  StoryBibleCreate,
+  StoryBibleUpdate,
+  StoryBible,
+  CharacterCreate,
+  CharacterUpdate,
+  Character,
+  DeliveryPackage,
+  DeliveryPackageCreate,
+  PublishJob,
+  PublishJobCreate,
 } from '../lib/api-client';
 
 // ── Supplemental enum/union types (not in api-client.ts) ─────────────────
