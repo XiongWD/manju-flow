@@ -9,12 +9,15 @@ C2PA 签名模块：
 
 import asyncio
 import hashlib
+import logging
+
+logger = logging.getLogger(__name__)
 import json
 import os
 import subprocess
 import time
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from database.models import Asset, AssetLink, JobStep, SceneVersion
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,7 +61,7 @@ class C2PASigner:
             )
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as e:
-            print(f"[C2PASigner] c2patool not available: {e}")
+            logger.warning("c2patool not available: %s", e)
             return False
 
     async def sign(
@@ -85,7 +88,7 @@ class C2PASigner:
         # 检查 c2patool 是否可用
         if not self.check_c2patool_available():
             # c2patool 不可用，记录警告并跳过（非阻塞步骤）
-            print(f"[C2PASigner] c2patool not available, skipping C2PA signing")
+            logger.warning("c2patool not available, skipping C2PA signing")
 
             if step:
                 step.metadata_json = step.metadata_json or {}
@@ -238,7 +241,7 @@ class C2PASigner:
             )
         except Exception as e:
             # C2PA 签名失败，记录警告但不 fail（非阻塞步骤）
-            print(f"[C2PASigner] C2PA signing failed: {e}")
+            logger.error("C2PA signing failed: %s", e)
 
             if step:
                 step.metadata_json = step.metadata_json or {}
@@ -296,7 +299,7 @@ class C2PASigner:
         manifest = self.MANIFEST_TEMPLATE.copy()
 
         # 设置创建时间
-        manifest["created"] = datetime.utcnow().isoformat() + "Z"
+        manifest["created"] = datetime.now(timezone.utc).isoformat() + "Z"
 
         # 添加断言（assertions）
         # TODO: 根据实际需求添加更多断言信息
@@ -311,7 +314,7 @@ class C2PASigner:
                     "prompt_bundle": scene_version.prompt_bundle,
                     "model_bundle": scene_version.model_bundle,
                     "source_asset_id": input_asset.id,
-                    "production_timestamp": datetime.utcnow().isoformat() + "Z",
+                    "production_timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                 },
             },
             {

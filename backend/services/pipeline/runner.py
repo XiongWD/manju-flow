@@ -6,8 +6,11 @@
 """
 
 import asyncio
+import logging
 import traceback
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from database.connection import async_session_factory
 from database.models import Scene
@@ -41,10 +44,10 @@ async def submit_scene_job_bg(
             # 阻断检查：scene 必须有锁定的静帧
             scene = await db.get(Scene, scene_id)
             if scene and not check_still_locked(scene):
-                print(
-                    f"[JobRunner] BLOCKED: Scene {scene_id} 没有锁定的静帧，"
-                    f"无法提交视频生成。请先完成静帧审核。"
-                    f"(current shot_stage={scene.shot_stage})"
+                logger.warning(
+                    "Scene %s has no locked still, cannot submit video generation. "
+                    "Please complete still review first (current shot_stage=%s)",
+                    scene_id, scene.shot_stage,
                 )
                 return
 
@@ -56,5 +59,4 @@ async def submit_scene_job_bg(
                 parent_version_id=parent_version_id,
             )
         except Exception as e:
-            print(f"[JobRunner] Background scene job failed: scene={scene_id} error={e}")
-            traceback.print_exc()
+            logger.error("Background scene job failed: scene=%s error=%s", scene_id, e, exc_info=True)

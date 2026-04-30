@@ -7,7 +7,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_db
-from database.models import Asset, AssetLink
+from database.models import Asset, AssetLink, User
+from services.auth import get_current_user
 from schemas.asset import AssetCreate, AssetUpdate, AssetRead, AssetWithLinksRead, AssetLinkCreate, AssetLinkRead
 from services.storage import get_storage_client
 
@@ -22,13 +23,14 @@ async def list_assets(
     owner_type: str = Query(None, description="归属类型"),
     owner_id: str = Query(None, description="归属对象 ID"),
     asset_type: str = Query(None, description="资产类型"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     search: str = Query("", description="搜索关键词"),
     db: AsyncSession = Depends(get_db),
 ):
     """获取资产列表，支持按 owner_type + owner_id 过滤"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     q = select(Asset)
     if project_id:
         q = q.where(Asset.project_id == project_id)
@@ -115,7 +117,7 @@ async def update_asset(
 
 
 @router.delete("/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_asset(asset_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_asset(asset_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除资产及其关联（同时删除 MinIO/S3 中的文件）"""
     asset = await db.get(Asset, asset_id)
     if not asset:
@@ -173,7 +175,7 @@ async def list_asset_links(asset_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/links/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_asset_link(link_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_asset_link(link_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除资产关联"""
     link = await db.get(AssetLink, link_id)
     if not link:

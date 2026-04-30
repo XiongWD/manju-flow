@@ -1,5 +1,4 @@
 
-logger = logging.getLogger(__name__)
 """知识沉淀路由 — 041b3
 
 API 端点：
@@ -9,6 +8,7 @@ API 端点：
 - PATCH  /api/knowledge/items/{item_id}       更新知识条目
 """
 import logging
+logger = logging.getLogger(__name__)
 
 
 from typing import Optional
@@ -72,12 +72,13 @@ async def list_knowledge_items(
     publish_job_id: Optional[str] = Query(None, description="按发布任务筛选"),
     category: Optional[str] = Query(None, description="按分类筛选"),
     is_active: Optional[bool] = Query(None, description="按生效状态筛选"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(_get_db),
 ):
     """列出知识条目"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     svc = KnowledgeService(db)
     items = []
     if publish_job_id:

@@ -19,12 +19,13 @@ async def list_qa_runs(
     project_id: str = Query(None),
     subject_type: str = Query(None),
     subject_id: str = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """获取 QA 运行列表"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     q = select(QARun)
     if project_id:
         q = q.where(QARun.project_id == project_id)
@@ -103,12 +104,13 @@ async def get_qa_run(run_id: str, db: AsyncSession = Depends(get_db)):
 async def list_qa_issues(
     project_id: str = Query(None),
     severity: str = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """获取 QA 问题列表"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     q = select(QAIssue)
     if project_id:
         q = q.where(QAIssue.project_id == project_id)

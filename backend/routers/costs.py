@@ -1,7 +1,7 @@
 
-logger = logging.getLogger(__name__)
 """成本追踪路由"""
 import logging
+logger = logging.getLogger(__name__)
 
 
 from fastapi import APIRouter, Depends, HTTPException, Query

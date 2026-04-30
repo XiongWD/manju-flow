@@ -50,4 +50,38 @@ class Settings:
     MINIO_PUBLIC_URL: str = os.getenv("MINIO_PUBLIC_URL", "")
 
 
+_JWT_DEFAULT = "manju-dev-secret-change-in-production"
+
+
+def validate_config() -> None:
+    """Validate security-critical settings at startup."""
+    import logging
+    logger = logging.getLogger("manju.config")
+    env = os.getenv("ENVIRONMENT", "development").lower()
+    if settings.JWT_SECRET == _JWT_DEFAULT:
+        if env in ("development", "debug"):
+            logger.warning("Using default JWT_SECRET — do not use in production!")
+        else:
+            logger.error(
+                "JWT_SECRET is set to default value in %s environment. Refusing to start.",
+                env,
+            )
+            raise SystemExit(1)
+
+    # DATABASE_URL 校验
+    if not settings.DATABASE_URL:
+        logger.error("DATABASE_URL is not set")
+        raise SystemExit(1)
+
+    # ACCESS_TOKEN_EXPIRE_MINUTES 校验
+    if settings.ACCESS_TOKEN_EXPIRE_MINUTES < 1:
+        logger.error("ACCESS_TOKEN_EXPIRE_MINUTES must be >= 1")
+        raise SystemExit(1)
+
+    # MAX_UPLOAD_BYTES 校验
+    if settings.MAX_UPLOAD_BYTES < 0:
+        logger.error("MAX_UPLOAD_BYTES must be >= 0")
+        raise SystemExit(1)
+
+
 settings = Settings()

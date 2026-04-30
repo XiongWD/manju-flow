@@ -11,7 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from database.models import ApiKey
+from database.models import ApiKey, User
+from services.auth import get_current_user
 from schemas.apikey import ApiKeyCreate, ApiKeyCreated, ApiKeyRead, ApiKeyUpdate
 
 
@@ -82,7 +83,7 @@ async def update_apikey(apikey_id: str, body: ApiKeyUpdate, db: AsyncSession = D
 
 
 @router.delete("/{apikey_id}", status_code=204)
-async def delete_apikey(apikey_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_apikey(apikey_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除 API Key"""
     apikey = await db.get(ApiKey, apikey_id)
     if not apikey:

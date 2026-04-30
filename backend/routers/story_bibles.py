@@ -2,12 +2,13 @@
 import logging
 
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from database.models import StoryBible
+from database.models import StoryBible, User
+from services.auth import get_current_user
 from schemas.story_bible import StoryBibleCreate, StoryBibleUpdate, StoryBibleRead
 
 
@@ -28,12 +29,13 @@ async def create_story_bible(body: StoryBibleCreate, db: AsyncSession = Depends(
 @router.get("/")
 async def list_story_bibles(
     project_id: str,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """按项目获取 Story Bible 列表"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     q = select(StoryBible).where(StoryBible.project_id == project_id)
     total_result = await db.execute(select(func.count()).select_from(q.subquery()))
     total = total_result.scalar() or 0
@@ -65,7 +67,7 @@ async def update_story_bible(story_bible_id: str, body: StoryBibleUpdate, db: As
 
 
 @router.delete("/{story_bible_id}", status_code=204)
-async def delete_story_bible(story_bible_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_story_bible(story_bible_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除 Story Bible"""
     obj = await db.get(StoryBible, story_bible_id)
     if not obj:

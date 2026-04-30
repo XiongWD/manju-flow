@@ -1,7 +1,7 @@
 
-logger = logging.getLogger(__name__)
 """镜头复杂度评分路由"""
 import logging
+logger = logging.getLogger(__name__)
 
 
 from fastapi import APIRouter, Depends, HTTPException

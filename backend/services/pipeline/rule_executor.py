@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -392,7 +392,7 @@ class RuleExecutor:
             )
             db.add(link)
 
-        qa_run.finished_at = datetime.utcnow()
+        qa_run.finished_at = datetime.now(timezone.utc)
         await db.commit()
 
         return qa_run.id, issue_ids

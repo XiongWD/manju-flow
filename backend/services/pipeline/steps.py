@@ -6,9 +6,12 @@
 """
 
 import asyncio
+import logging
 import random
 import time
-from datetime import datetime
+
+logger = logging.getLogger(__name__)
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import select, func
@@ -100,7 +103,7 @@ async def _execute_mock_pipeline(
         if step_failed:
             step.status = "failed"
             step.error_message = f"Mock 执行失败：{step_def['label']} 超时"
-            step.finished_at = datetime.utcnow()
+            step.finished_at = datetime.now(timezone.utc)
             has_failure = True
             failed_step_key = step_def["key"]
             failed_message = step.error_message
@@ -135,7 +138,7 @@ async def _execute_mock_pipeline(
         mock_uri = f"mock://assets/{step_def['key']}/{_uuid()[:8]}.dat"
         step.status = "completed"
         step.output_json = {"uri": mock_uri, "mock": True}
-        step.finished_at = datetime.utcnow()
+        step.finished_at = datetime.now(timezone.utc)
 
         asset_type = {
             "character_assets": "character_ref",
@@ -181,7 +184,7 @@ async def _execute_mock_pipeline(
                 status="passed" if passed else "failed",
                 score_json={"overall": random.uniform(70, 98) if passed else random.uniform(30, 69)},
                 threshold_snapshot={"min_score": 70},
-                finished_at=datetime.utcnow(),
+                finished_at=datetime.now(timezone.utc),
             )
             db.add(qa_run)
             await db.flush()
@@ -256,7 +259,7 @@ async def _execute_mock_pipeline(
             message="任务完成（进入 READY_TO_LOCK 状态）",
         ))
 
-    job.finished_at = datetime.utcnow()
+    job.finished_at = datetime.now(timezone.utc)
 
 
 async def _execute_real_pipeline(
@@ -338,7 +341,7 @@ async def _execute_real_pipeline(
                 # 如果没有 character，步骤标记 skipped
                 if not characters:
                     step.status = "skipped"
-                    step.finished_at = datetime.utcnow()
+                    step.finished_at = datetime.now(timezone.utc)
 
                     _record_progress(_make_progress_event(
                         project_id=project_id,
@@ -362,7 +365,7 @@ async def _execute_real_pipeline(
                 # 获取参考图片路径（从 character.canonical_asset_id）
                 if not character.canonical_asset_id:
                     step.status = "skipped"
-                    step.finished_at = datetime.utcnow()
+                    step.finished_at = datetime.now(timezone.utc)
 
                     _record_progress(_make_progress_event(
                         project_id=project_id,
@@ -388,7 +391,7 @@ async def _execute_real_pipeline(
 
                 if not ref_asset:
                     step.status = "skipped"
-                    step.finished_at = datetime.utcnow()
+                    step.finished_at = datetime.now(timezone.utc)
 
                     _record_progress(_make_progress_event(
                         project_id=project_id,
@@ -411,7 +414,7 @@ async def _execute_real_pipeline(
 
                 if not ref_path:
                     step.status = "skipped"
-                    step.finished_at = datetime.utcnow()
+                    step.finished_at = datetime.now(timezone.utc)
 
                     _record_progress(_make_progress_event(
                         project_id=project_id,
@@ -448,7 +451,7 @@ async def _execute_real_pipeline(
                     "duration": duration,
                     **asset.metadata_json,
                 }
-                step.finished_at = datetime.utcnow()
+                step.finished_at = datetime.now(timezone.utc)
 
                 # 执行 QA Gate（G2）
                 if "character_assets" in QA_GATES:
@@ -502,7 +505,7 @@ async def _execute_real_pipeline(
 
                     except Exception as e:
                         # QA Gate 执行异常，记录但继续（不中断流程）
-                        print(f"[Orchestrator] QA Gate failed: {e}")
+                        logger.warning("QA Gate failed: %s", e)
 
                 _record_progress(_make_progress_event(
                     project_id=project_id,
@@ -529,7 +532,7 @@ async def _execute_real_pipeline(
                     "message": str(e),
                     "type": "character_generation_error",
                 }
-                step.finished_at = datetime.utcnow()
+                step.finished_at = datetime.now(timezone.utc)
                 has_failure = True
                 failed_step_key = step_def["key"]
                 failed_message = str(e)
@@ -674,7 +677,7 @@ async def _execute_real_pipeline(
                 if not C2PASigner.check_c2patool_available():
                     # c2patool 不可用，跳过
                     step.status = "skipped"
-                    step.finished_at = datetime.utcnow()
+                    step.finished_at = datetime.now(timezone.utc)
 
                     _record_progress(_make_progress_event(
                         project_id=project_id,
@@ -732,7 +735,7 @@ async def _execute_real_pipeline(
                 "duration": duration,
                 **asset.metadata_json,
             }
-            step.finished_at = datetime.utcnow()
+            step.finished_at = datetime.now(timezone.utc)
 
             # 执行 QA Gate（除了 qa_check 步骤本身）
             if step_def["key"] in QA_GATES:
@@ -786,7 +789,7 @@ async def _execute_real_pipeline(
 
                 except Exception as e:
                     # QA Gate 执行异常，记录但继续（不中断流程）
-                    print(f"[Orchestrator] QA Gate failed: {e}")
+                    logger.warning("QA Gate failed: %s", e)
 
             _record_progress(_make_progress_event(
                 project_id=project_id,
@@ -812,7 +815,7 @@ async def _execute_real_pipeline(
                 "error_type": e.error_type,
                 "details": e.details,
             }
-            step.finished_at = datetime.utcnow()
+            step.finished_at = datetime.now(timezone.utc)
             has_failure = True
             failed_step_key = step_def["key"]
             failed_message = e.message
@@ -886,4 +889,4 @@ async def _execute_real_pipeline(
             message="任务完成（进入 READY_TO_LOCK 状态）",
         ))
 
-    job.finished_at = datetime.utcnow()
+    job.finished_at = datetime.now(timezone.utc)

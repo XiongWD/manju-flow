@@ -1,15 +1,16 @@
 
-logger = logging.getLogger(__name__)
 """PromptTemplate 路由 — Prompt 模板 CRUD + Build"""
 import logging
+logger = logging.getLogger(__name__)
 
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_db
-from database.models import PromptTemplate, Project
+from database.models import PromptTemplate, Project, User
+from services.auth import get_current_user
 from schemas.prompt_template import (
 
     PromptTemplateCreate,
@@ -29,12 +30,13 @@ _builder = PromptBuilder()
 @router.get("/projects/{project_id}/prompt-templates")
 async def list_prompt_templates(
     project_id: str,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """获取项目下的模板列表"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -132,6 +134,7 @@ async def update_prompt_template(
 async def delete_prompt_template(
     template_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """删除模板"""
     template = await db.get(PromptTemplate, template_id)

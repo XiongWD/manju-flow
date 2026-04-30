@@ -3,7 +3,9 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +23,7 @@ from services.auth import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 def _get_session() -> AsyncSession:
@@ -32,7 +35,8 @@ def _get_session() -> AsyncSession:
 
 # ── POST /register ──
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def register(body: UserCreate):
+@limiter.limit("5/minute")
+async def register(request: Request, body: UserCreate):
     async with async_session_factory() as session:
         # Check email uniqueness
         existing = await session.execute(select(User).where(User.email == body.email))
@@ -53,7 +57,8 @@ async def register(body: UserCreate):
 
 # ── POST /login ──
 @router.post("/login", response_model=TokenResponse)
-async def login(body: UserLogin):
+@limiter.limit("10/minute")
+async def login(request: Request, body: UserLogin):
     async with async_session_factory() as session:
         result = await session.execute(select(User).where(User.email == body.email))
         user = result.scalar_one_or_none()

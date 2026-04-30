@@ -2,12 +2,13 @@
 import logging
 
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_db
-from database.models import Prop, PropState, Project, Scene
+from database.models import Prop, PropState, Project, Scene, User
+from services.auth import get_current_user
 from schemas.prop import PropCreate, PropUpdate, PropRead, PropStateCreate, PropStateUpdate, PropStateRead
 
 
@@ -20,12 +21,13 @@ router = APIRouter(prefix="/api", tags=["props"])
 @router.get("/projects/{project_id}/props")
 async def list_props(
     project_id: str,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """获取项目下的道具列表"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -87,6 +89,7 @@ async def update_prop(
 async def delete_prop(
     prop_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """删除道具"""
     prop = await db.get(Prop, prop_id)

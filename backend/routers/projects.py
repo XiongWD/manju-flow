@@ -9,7 +9,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from database.models import Project
+from database.models import Project, User
+from services.auth import get_current_user
 from schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
 from services.broadcast import broadcast
 
@@ -30,13 +31,14 @@ async def create_project(body: ProjectCreate, db: AsyncSession = Depends(get_db)
 
 @router.get("/")
 async def list_projects(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     search: str = Query("", description="搜索关键词"),
     db: AsyncSession = Depends(get_db),
 ):
     """获取项目列表"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     base_q = select(Project)
     if search:
         base_q = base_q.filter(or_(
@@ -77,7 +79,7 @@ async def update_project(project_id: str, body: ProjectUpdate, db: AsyncSession 
 
 
 @router.delete("/{project_id}", status_code=204)
-async def delete_project(project_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_project(project_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除项目"""
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()

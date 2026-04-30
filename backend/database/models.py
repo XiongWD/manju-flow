@@ -13,7 +13,7 @@
 25. script_issues       26. still_candidates
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
@@ -38,7 +38,7 @@ def _uuid() -> str:
 
 
 def _now() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
 
 
 # ─── 1. projects ────────────────────────────────────────────────────────────

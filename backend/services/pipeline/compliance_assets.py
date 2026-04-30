@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,7 +108,7 @@ class ComplianceAssetifier:
                 "scene_version_id": scene_version_id,
                 "manifest_data": manifest_data,
                 "sign_error": sign_error,
-                "created_at": datetime.utcnow().isoformat() + "Z",
+                "created_at": datetime.now(timezone.utc).isoformat() + "Z",
             },
         )
         db.add(asset)
@@ -184,7 +184,7 @@ class ComplianceAssetifier:
                 "source_asset_id": source_asset_id,
                 "scene_version_id": scene_version_id,
                 "error": error,
-                "created_at": datetime.utcnow().isoformat() + "Z",
+                "created_at": datetime.now(timezone.utc).isoformat() + "Z",
             },
         )
         db.add(asset)
@@ -254,7 +254,7 @@ class ComplianceAssetifier:
                 "source_asset_id": source_asset_id,
                 "scene_version_id": scene_version_id,
                 "error": error,
-                "created_at": datetime.utcnow().isoformat() + "Z",
+                "created_at": datetime.now(timezone.utc).isoformat() + "Z",
             },
         )
         db.add(asset)
@@ -314,7 +314,7 @@ class ComplianceAssetifier:
             "subject_type": subject_type,
             "subject_id": subject_id,
             "status": status,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             "summary": {
                 "total": len(rule_results) if rule_results else 0,
                 "passed": sum(1 for r in (rule_results or []) if r.get("passed") is True),

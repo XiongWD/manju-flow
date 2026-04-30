@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from sqlalchemy import select
@@ -137,7 +137,7 @@ class ExportRechecker:
             "overall_status": overall_status,
             "qa_run_ids": qa_run_ids,
             "status_counts": status_counts,
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
         pkg.manifest_json = manifest
 
@@ -237,7 +237,7 @@ class ExportRechecker:
             "status": overall_status,
             "qa_run_ids": qa_run_ids,
             "platform": platform,
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
         job.payload_json = payload
 
@@ -259,6 +259,6 @@ class ExportRechecker:
             meta["export_recheck"] = {
                 "status": overall_status,
                 "qa_run_ids": qa_run_ids,
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
             variant.metadata_json = meta

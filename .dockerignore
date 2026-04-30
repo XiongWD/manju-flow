@@ -1,0 +1,13 @@
+.venv
+__pycache__
+*.pyc
+.env
+.git
+node_modules
+.next
+*.db
+storage_data
+bak
+share
+.openclaw
+*.md

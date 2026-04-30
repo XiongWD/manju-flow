@@ -7,7 +7,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from database.models import Character, CharacterEpisode
+from database.models import Character, CharacterEpisode, User
+from services.auth import get_current_user
 from schemas.character import CharacterCreate, CharacterUpdate, CharacterRead
 
 
@@ -77,13 +78,14 @@ async def create_character(body: CharacterCreate, db: AsyncSession = Depends(get
 @router.get("/")
 async def list_characters(
     project_id: str,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     search: str = Query("", description="搜索关键词"),
     db: AsyncSession = Depends(get_db),
 ):
     """按项目获取角色列表"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     q = select(Character).where(Character.project_id == project_id)
     if search:
         q = q.filter(or_(
@@ -148,7 +150,7 @@ async def update_character(character_id: str, body: CharacterUpdate, db: AsyncSe
 
 
 @router.delete("/{character_id}", status_code=204)
-async def delete_character(character_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_character(character_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除角色"""
     obj = await db.get(Character, character_id)
     if not obj:

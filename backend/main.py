@@ -11,9 +11,12 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from config import settings
+from config import settings, validate_config
 from database.connection import Base, async_engine
 from middleware.auth import AuthMiddleware
+from middleware.rate_limit import limiter
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from services.broadcast import broadcast
 from routers import (
     projects_router,
@@ -65,7 +68,7 @@ async def _broadcast_progress(event: dict):
         try:
             tasks.append(ws.send_json(message))
         except Exception as e:
-            print(f"[WebSocket] Failed to prepare send: {e}")
+            logger.warning("WebSocket failed to prepare send: %s", e)
 
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -128,15 +131,26 @@ app = FastAPI(
     redirect_slashes=False,
 )
 
+# Security config validation (before middleware/routers)
+validate_config()
+
 # CORS
 _cors_origins = settings.CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _cors_origins],
     allow_credentials=_cors_origins != ["*"],
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Audit logging (before auth so we log all write attempts)
+from middleware.audit_log import AuditLogMiddleware
+app.add_middleware(AuditLogMiddleware)
 
 # Auth middleware (before routers so it runs first)
 app.add_middleware(AuthMiddleware)
@@ -182,6 +196,11 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.websocket("/ws/{channel}")
 async def ws_channel(ws: WebSocket, channel: str):
     """频道级 WebSocket 广播（多标签同步）"""
+    import os
+    env = os.getenv("ENVIRONMENT", "development").lower()
+    if env not in ("development", "debug"):
+        await ws.close(code=1008, reason="WebSocket not available in production")
+        return
     await broadcast.connect(channel, ws)
     try:
         while True:
@@ -196,11 +215,16 @@ async def ws_channel(ws: WebSocket, channel: str):
 @app.websocket("/ws/live")
 async def websocket_live(websocket: WebSocket):
     """实时进度推送（支持作业进度广播）"""
+    import os
+    env = os.getenv("ENVIRONMENT", "development").lower()
+    if env not in ("development", "debug"):
+        await websocket.close(code=1008, reason="WebSocket not available in production")
+        return
     await websocket.accept()
 
     # 加入连接池
     _active_websockets.add(websocket)
-    print(f"[WebSocket] Client connected. Total connections: {len(_active_websockets)}")
+    logger.debug("WebSocket client connected. Total: %d", len(_active_websockets))
 
     try:
         # 发送欢迎消息
@@ -228,13 +252,13 @@ async def websocket_live(websocket: WebSocket):
                 })
 
     except WebSocketDisconnect:
-        print(f"[WebSocket] Client disconnected gracefully")
+        logger.debug("WebSocket client disconnected gracefully")
     except Exception as e:
-        print(f"[WebSocket] Error: {e}")
+        logger.warning("WebSocket error: %s", e)
     finally:
         # 从连接池移除
         _active_websockets.discard(websocket)
-        print(f"[WebSocket] Client removed. Total connections: {len(_active_websockets)}")
+        logger.debug("WebSocket client removed. Total: %d", len(_active_websockets))
 
 
 @app.get("/api/health")
@@ -245,6 +269,11 @@ async def health_check():
 @app.post("/api/seed")
 async def seed_demo_data():
     """生成 mock 演示数据（仅开发环境用）"""
+    import os
+    env = os.getenv("ENVIRONMENT", "development").lower()
+    if env not in ("development", "debug"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Seed endpoint is only available in development mode")
     import uuid
     from database.connection import async_session_factory
     from database.models import Project, Episode, Scene

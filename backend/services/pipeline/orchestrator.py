@@ -15,7 +15,7 @@ Phase 5 拆分：
 """
 
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import select, func
@@ -123,7 +123,7 @@ async def start_scene_job(
 
     # 标记 job 为 running
     job.status = "running"
-    job.started_at = datetime.utcnow()
+    job.started_at = datetime.now(timezone.utc)
     await db.flush()
 
     _record_progress(_make_progress_event(
@@ -207,11 +207,11 @@ async def cancel_job(db: AsyncSession, job_id: str) -> Optional[Job]:
     steps_result = await db.execute(steps_q)
     for step in steps_result.scalars():
         step.status = "skipped"
-        step.finished_at = datetime.utcnow()
+        step.finished_at = datetime.now(timezone.utc)
 
     job.status = "cancelled"
     job.error_message = "Cancelled by user"
-    job.finished_at = datetime.utcnow()
+    job.finished_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(job)
     return job

@@ -20,16 +20,19 @@ JWT_SECRET = settings.JWT_SECRET
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
-# ── Password ──
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# ── Password hashing (bcrypt via passlib) ──
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+)
 
 
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    return pwd_context.hash(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    return pwd_context.verify(plain, hashed)
 
 
 # ── JWT ──

@@ -25,13 +25,14 @@ router = APIRouter(prefix="/api/episodes", tags=["episodes"])
 @router.get("/")
 async def list_episodes(
     project_id: str = Query(None, description="项目 ID"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     search: str = Query("", description="搜索关键词"),
     db: AsyncSession = Depends(get_db),
 ):
     """获取剧集列表"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     q = select(Episode)
     if project_id:
         q = q.where(Episode.project_id == project_id)

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import select
@@ -109,7 +109,7 @@ class PublishJobService:
         if target_status == "running":
             job.started_at = None  # PublishJob 无 started_at，用 created_at
         elif target_status == "success":
-            job.published_at = datetime.utcnow()
+            job.published_at = datetime.now(timezone.utc)
             # 041b3: 发布成功时自动播种初始 analytics 快照
             await self._seed_initial_snapshot(job)
         elif target_status == "failed":
@@ -144,7 +144,7 @@ class PublishJobService:
             shares=0,
             watch_time=0.0,
             source="auto_seed",
-            snapshot_at=datetime.utcnow(),
+            snapshot_at=datetime.now(timezone.utc),
         )
         self.db.add(snapshot)
         await self.db.flush()

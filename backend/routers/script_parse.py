@@ -1,7 +1,7 @@
 
-logger = logging.getLogger(__name__)
 """剧本解析路由"""
 import logging
+logger = logging.getLogger(__name__)
 
 
 from typing import Optional

@@ -6,7 +6,7 @@
 - 提供显式 lock 切换接口
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import select
@@ -76,7 +76,7 @@ class VersionLockService:
             )
 
         sv.status = "READY_TO_LOCK"
-        sv.updated_at = datetime.utcnow()
+        sv.updated_at = datetime.now(timezone.utc)
         await db.flush()
 
         return sv
@@ -134,11 +134,11 @@ class VersionLockService:
 
         # 更新锁定版本
         scene.locked_version_id = scene_version_id
-        scene.updated_at = datetime.utcnow()
+        scene.updated_at = datetime.now(timezone.utc)
 
         # 更新 scene_version 状态为 LOCKED
         sv.status = "LOCKED"
-        sv.updated_at = datetime.utcnow()
+        sv.updated_at = datetime.now(timezone.utc)
 
         await db.flush()
 

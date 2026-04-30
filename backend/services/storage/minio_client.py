@@ -13,13 +13,24 @@ from pydantic import BaseModel
 
 class StorageConfig(BaseModel):
     """存储配置"""
-    from config import settings
-    endpoint: str = settings.MINIO_ENDPOINT
-    access_key: str = settings.MINIO_ACCESS_KEY
-    secret_key: str = settings.MINIO_SECRET_KEY
-    bucket_name: str = settings.MINIO_BUCKET
-    use_ssl: bool = settings.MINIO_USE_SSL
-    public_url_base: Optional[str] = settings.MINIO_PUBLIC_URL or None
+    endpoint: str
+    access_key: str
+    secret_key: str
+    bucket_name: str
+    use_ssl: bool
+    public_url_base: Optional[str] = None
+
+    @classmethod
+    def from_env(cls) -> "StorageConfig":
+        from config import settings
+        return cls(
+            endpoint=settings.MINIO_ENDPOINT,
+            access_key=settings.MINIO_ACCESS_KEY,
+            secret_key=settings.MINIO_SECRET_KEY,
+            bucket_name=settings.MINIO_BUCKET,
+            use_ssl=settings.MINIO_USE_SSL,
+            public_url_base=settings.MINIO_PUBLIC_URL or None,
+        )
 
 
 # 懒加载导入，避免依赖问题（minio 可能未安装）
@@ -31,7 +42,7 @@ def get_storage_config() -> StorageConfig:
     """获取存储配置（单例）"""
     global _storage_config
     if _storage_config is None:
-        _storage_config = StorageConfig()
+        _storage_config = StorageConfig.from_env()
     return _storage_config
 
 

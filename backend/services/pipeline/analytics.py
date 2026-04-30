@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import select, func
@@ -80,7 +80,7 @@ class AnalyticsService:
             shares=shares,
             watch_time=watch_time,
             source=source,
-            snapshot_at=snapshot_at or datetime.utcnow(),
+            snapshot_at=snapshot_at or datetime.now(timezone.utc),
         )
         self.db.add(snapshot)
         await self.db.flush()

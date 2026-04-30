@@ -9,8 +9,11 @@
 """
 
 import asyncio
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,7 +49,7 @@ def _make_progress_event(
         "step_status": step_status,
         "progress_percent": progress_percent,
         "message": message,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -85,7 +88,7 @@ async def _persist_event_to_db(event: dict):
             session.add(db_event)
             await session.commit()
     except Exception as e:
-        print(f"[Orchestrator] Failed to persist progress event to DB: {e}")
+        logger.warning("Failed to persist progress event to DB: %s", e)
 
 
 def _record_progress(event: dict):
@@ -103,7 +106,7 @@ def _record_progress(event: dict):
         asyncio.ensure_future(_persist_event_to_db(event))
     except RuntimeError:
         # 没有运行中的 event loop（纯 sync 上下文），打印 warning
-        print(f"[Orchestrator] WARNING: no event loop, skipping DB persist for job={job_id}")
+        logger.warning("No event loop, skipping DB persist for job=%s", job_id)
 
     # 3. 触发 WebSocket 广播
     if _progress_callback:
@@ -111,7 +114,7 @@ def _record_progress(event: dict):
             asyncio.ensure_future(_progress_callback(event))
         except Exception as e:
             # 广播失败不影响主流程
-            print(f"[Orchestrator] Progress callback failed: {e}")
+            logger.warning("Progress callback failed: %s", e)
 
 
 async def get_job_progress(job_id: str) -> list[dict]:
@@ -140,7 +143,7 @@ async def get_job_progress(job_id: str) -> list[dict]:
                     for e in db_events
                 ]
     except Exception as e:
-        print(f"[Orchestrator] Failed to read progress from DB, falling back to memory: {e}")
+        logger.warning("Failed to read progress from DB, falling back to memory: %s", e)
     return _progress_events.get(job_id, [])
 
 
@@ -167,7 +170,7 @@ async def get_job_latest_progress(job_id: str) -> Optional[dict]:
                     "timestamp": db_event.created_at.isoformat() if db_event.created_at else None,
                 }
     except Exception as e:
-        print(f"[Orchestrator] Failed to read latest progress from DB, falling back to memory: {e}")
+        logger.warning("Failed to read latest progress from DB, falling back to memory: %s", e)
     events = _progress_events.get(job_id, [])
     return events[-1] if events else None
 
@@ -208,7 +211,7 @@ def _record_fallback(
         "trigger_gate": trigger_gate,
         "retry_count": retry_count,
         "scene_version_id": scene_version_id,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     step.metadata_json["fallback_records"].append(record)

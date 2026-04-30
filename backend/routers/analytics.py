@@ -75,12 +75,13 @@ async def list_snapshots(
     episode_id: Optional[str] = Query(None, description="按剧集筛选"),
     publish_job_id: Optional[str] = Query(None, description="按发布任务筛选"),
     platform: Optional[str] = Query(None, description="按平台筛选"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(_get_db),
 ):
     """列出 analytics 快照"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     svc = AnalyticsService(db)
     snapshots = []
     if publish_job_id:

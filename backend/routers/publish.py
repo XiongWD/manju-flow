@@ -1,5 +1,4 @@
 
-logger = logging.getLogger(__name__)
 """发布 & 交付路由 — 041b2
 
 API 端点：
@@ -14,6 +13,7 @@ API 端点：
 - GET    /api/publish/variants                 列出平台变体
 """
 import logging
+logger = logging.getLogger(__name__)
 
 
 from typing import Optional
@@ -89,12 +89,13 @@ async def create_delivery_package(
 @router.get("/delivery-packages")
 async def list_delivery_packages(
     episode_id: Optional[str] = Query(None, description="按剧集筛选"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(_get_db),
 ):
     """列出交付包"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     stmt = select(DeliveryPackage)
     if episode_id:
         stmt = stmt.where(DeliveryPackage.episode_id == episode_id)
@@ -193,12 +194,13 @@ async def recheck_delivery_package(
 async def list_platform_variants(
     delivery_package_id: Optional[str] = Query(None, description="按交付包筛选"),
     platform: Optional[str] = Query(None, description="按平台筛选"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(_get_db),
 ):
     """列出平台变体"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     stmt = select(PublishVariant)
     if delivery_package_id:
         stmt = stmt.where(PublishVariant.delivery_package_id == delivery_package_id)
@@ -249,12 +251,13 @@ async def create_publish_job(
 async def list_publish_jobs(
     episode_id: Optional[str] = Query(None, description="按剧集筛选"),
     status: Optional[str] = Query(None, description="按状态筛选"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(_get_db),
 ):
     """列出发布任务"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     stmt = select(PublishJob)
     if episode_id:
         stmt = stmt.where(PublishJob.episode_id == episode_id)

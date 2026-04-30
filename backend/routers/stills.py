@@ -1,10 +1,10 @@
 
-logger = logging.getLogger(__name__)
 """静帧候选路由 — 状态机 + 视频生成阻断"""
 import logging
+logger = logging.getLogger(__name__)
 
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -151,7 +151,7 @@ async def update_still_candidate(
         if candidate.status not in ("pending", "approved", "rejected"):
             raise HTTPException(409, f"候选当前状态 {candidate.status} 不允许审核")
         candidate.status = body.status
-        candidate.reviewed_at = datetime.utcnow()
+        candidate.reviewed_at = datetime.now(timezone.utc)
 
     if body.review_note is not None:
         candidate.review_note = body.review_note

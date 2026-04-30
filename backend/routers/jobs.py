@@ -1,5 +1,4 @@
 
-logger = logging.getLogger(__name__)
 """Job 路由 — 生产任务管理（增强版）
 
 增强：
@@ -10,6 +9,7 @@ logger = logging.getLogger(__name__)
 - 最新进度 GET /{job_id}/latest-progress
 """
 import logging
+logger = logging.getLogger(__name__)
 
 
 import asyncio
@@ -41,13 +41,14 @@ async def list_jobs(
     project_id: str = Query(None),
     status: str = Query(None),
     target_id: str = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     search: str = Query("", description="搜索关键词"),
     db: AsyncSession = Depends(get_db),
 ):
     """获取 Job 列表，支持状态和目标过滤"""
-    limit = min(limit, 200)
+    skip = (page - 1) * page_size
+    limit = min(page_size, 200)
     q = select(Job)
     if project_id:
         q = q.where(Job.project_id == project_id)
