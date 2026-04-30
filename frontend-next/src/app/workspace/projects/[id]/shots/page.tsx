@@ -19,7 +19,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { apiClient, Episode, Scene } from "@/lib/api-client"
+import { apiClient, Episode, Scene, StillCandidate } from "@/lib/api-client"
 import GlassSurface from "@/components/ui/primitives/GlassSurface"
 import GlassButton from "@/components/ui/primitives/GlassButton"
 import GlassInput from "@/components/ui/primitives/GlassInput"
@@ -177,6 +177,14 @@ function SortableSceneCard({
             </svg>
           </div>
         )}
+        {/* still locked indicator */}
+        {scene.shot_stage === 'still_locked' && (
+          <div className="absolute top-2 left-9 text-purple-400" title="已锁定静帧">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" />
+            </svg>
+          </div>
+        )}
 
         {/* click area (excludes checkbox & drag handle) */}
         <div onClick={(e) => {
@@ -216,6 +224,247 @@ function SortableSceneCard({
           )}
         </div>
       </GlassSurface>
+    </div>
+  )
+}
+
+/* ── Still Candidate Review Panel ──────────────────── */
+
+function StillCandidateReviewPanel({
+  scene,
+  candidates,
+  lockedStill,
+  loading,
+  selectedId,
+  onSelect,
+  onApprove,
+  onReject,
+  onLock,
+  locking,
+  reviewing,
+  rejectNoteTarget,
+  rejectNote,
+  onRejectNoteChange,
+  onSubmitReject,
+  onCancelReject,
+  panelOpen,
+  onTogglePanel,
+}: {
+  scene: Scene
+  candidates: StillCandidate[]
+  lockedStill: StillCandidate | null
+  loading: boolean
+  selectedId: string | null
+  onSelect: (id: string | null) => void
+  onApprove: (id: string) => void
+  onReject: (id: string) => void
+  onLock: () => void
+  locking: boolean
+  reviewing: boolean
+  rejectNoteTarget: string | null
+  rejectNote: string
+  onRejectNoteChange: (v: string) => void
+  onSubmitReject: () => void
+  onCancelReject: () => void
+  panelOpen: boolean
+  onTogglePanel: () => void
+}) {
+  const stillStages = ['still_generating', 'still_review', 'still_locked']
+  const isStillStage = scene.shot_stage != null && stillStages.includes(scene.shot_stage)
+  const approvedCandidates = candidates.filter((c) => c.status === 'approved')
+
+  if (!isStillStage && candidates.length === 0 && !lockedStill) return null
+
+  return (
+    <div className="border-t border-zinc-800/50 pt-4">
+      {/* collapsible header */}
+      <button
+        onClick={onTogglePanel}
+        className="flex items-center justify-between w-full text-sm font-medium text-zinc-300 mb-3 hover:text-zinc-100 transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          🖼 静帧审核
+          {scene.shot_stage && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-900/40 text-purple-300">
+              {scene.shot_stage}
+            </span>
+          )}
+          {candidates.length > 0 && (
+            <span className="text-xs text-zinc-500">({candidates.length})</span>
+          )}
+        </span>
+        <svg
+          className={`w-4 h-4 text-zinc-500 transition-transform ${panelOpen ? 'rotate-180' : ''}`}
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {panelOpen && (
+        <div className="space-y-4">
+          {/* locked still display */}
+          {lockedStill && (
+            <GlassSurface variant="card" className="p-3 border-yellow-500/30 ring-1 ring-yellow-500/20">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-yellow-500 text-sm">🔒 已锁定静帧</span>
+                <span className="text-xs text-zinc-500">v{lockedStill.version}</span>
+              </div>
+              <div className="w-full aspect-video bg-zinc-800/60 rounded-lg overflow-hidden">
+                <img
+                  src={lockedStill.thumbnail_path || lockedStill.image_path}
+                  alt={`锁定静帧 v${lockedStill.version}`}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </GlassSurface>
+          )}
+
+          {loading ? (
+            <div className="text-zinc-500 text-sm py-4 text-center">加载静帧候选中...</div>
+          ) : candidates.length === 0 && !lockedStill ? (
+            <div className="text-zinc-500 text-sm py-4 text-center">暂无静帧候选</div>
+          ) : (
+            <>
+              {/* candidate grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {candidates
+                  .sort((a, b) => b.version - a.version)
+                  .map((c) => {
+                    const statusColors: Record<string, string> = {
+                      pending: 'bg-yellow-400/20 text-yellow-400',
+                      approved: 'bg-green-400/20 text-green-400',
+                      rejected: 'bg-red-400/20 text-red-400',
+                    }
+                    const isSelected = selectedId === c.id
+                    const isApproved = c.status === 'approved'
+
+                    return (
+                      <div key={c.id}>
+                        <div
+                          className={`cursor-pointer ${
+                            isSelected
+                              ? 'ring-2 ring-blue-500/50 rounded-lg'
+                              : isApproved
+                              ? 'hover:ring-1 hover:ring-green-500/30 rounded-lg'
+                              : 'hover:ring-1 hover:ring-zinc-600/30 rounded-lg'
+                          }`}
+                          onClick={() => onSelect(isSelected ? null : c.id)}
+                        >
+                        <GlassSurface
+                          variant="card"
+                          className="p-2"
+                        >
+                          {/* thumbnail */}
+                          <div className="w-full aspect-[3/2] bg-zinc-800/60 rounded-md overflow-hidden mb-2">
+                            <img
+                              src={c.thumbnail_path || c.image_path}
+                              alt={`静帧 v${c.version}`}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+
+                          {/* meta */}
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-mono text-zinc-300">v{c.version}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusColors[c.status] || 'bg-zinc-700/60 text-zinc-400'}`}>
+                              {c.status === 'pending' ? '待审' : c.status === 'approved' ? '通过' : '拒绝'}
+                            </span>
+                          </div>
+
+                          {c.reviewed_at && (
+                            <div className="text-[10px] text-zinc-600">
+                              {new Date(c.reviewed_at).toLocaleString('zh-CN')}
+                            </div>
+                          )}
+
+                          {/* review actions for pending */}
+                          {c.status === 'pending' && (
+                            <div className="flex gap-1 mt-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onApprove(c.id) }}
+                                disabled={reviewing}
+                                className="flex-1 text-xs py-1 rounded-md bg-green-900/30 text-green-400 hover:bg-green-900/50 transition-colors disabled:opacity-50"
+                              >
+                                ✅ 通过
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onReject(c.id) }}
+                                disabled={reviewing}
+                                className="flex-1 text-xs py-1 rounded-md bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors disabled:opacity-50"
+                              >
+                                ❌ 拒绝
+                              </button>
+                            </div>
+                          )}
+
+                          {c.review_note && (
+                            <div className="text-[10px] text-zinc-500 mt-1 truncate" title={c.review_note}>
+                              💬 {c.review_note}
+                            </div>
+                          )}
+                        </GlassSurface>
+                        </div>
+
+                        {/* inline reject note input */}
+                        {rejectNoteTarget === c.id && (
+                          <div className="mt-2 p-2 rounded-lg bg-zinc-900/80 border border-red-500/30 space-y-2">
+                            <input
+                              type="text"
+                              value={rejectNote}
+                              onChange={(e) => onRejectNoteChange(e.target.value)}
+                              placeholder="拒绝原因（可选）"
+                              className="w-full text-xs bg-zinc-800/60 border border-zinc-700/50 rounded-md px-2 py-1.5 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-red-500/50"
+                              autoFocus
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                onClick={onSubmitReject}
+                                disabled={reviewing}
+                                className="flex-1 text-xs py-1 rounded-md bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors disabled:opacity-50"
+                              >
+                                确认拒绝
+                              </button>
+                              <button
+                                onClick={onCancelReject}
+                                disabled={reviewing}
+                                className="text-xs px-2 py-1 rounded-md bg-zinc-800/60 text-zinc-400 hover:text-zinc-300 transition-colors"
+                              >
+                                取消
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+              </div>
+
+              {/* lock button */}
+              {approvedCandidates.length > 0 && !lockedStill && (
+                <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/60 border border-yellow-500/20">
+                  <div className="text-xs text-zinc-400">
+                    {selectedId && approvedCandidates.some((c) => c.id === selectedId)
+                      ? `已选中 v${approvedCandidates.find((c) => c.id === selectedId)?.version}，点击锁定`
+                      : `共 ${approvedCandidates.length} 个通过候选，请点击选中一个后锁定`
+                    }
+                  </div>
+                  <GlassButton
+                    variant="primary"
+                    size="sm"
+                    disabled={!selectedId || !approvedCandidates.some((c) => c.id === selectedId) || locking}
+                    onClick={onLock}
+                    loading={locking}
+                  >
+                    🔒 锁定静帧
+                  </GlassButton>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -290,6 +539,17 @@ export default function ShotEditorPage() {
   const [batchDurationMode, setBatchDurationMode] = useState<'set' | 'add' | 'multiply'>('set')
   const [batchDurationValue, setBatchDurationValue] = useState('')
   const [batchDurationSaving, setBatchDurationSaving] = useState(false)
+
+  // still candidates
+  const [stillCandidates, setStillCandidates] = useState<StillCandidate[]>([])
+  const [loadingStillCandidates, setLoadingStillCandidates] = useState(false)
+  const [lockedStill, setLockedStill] = useState<StillCandidate | null>(null)
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
+  const [rejectNoteTarget, setRejectNoteTarget] = useState<string | null>(null)
+  const [rejectNote, setRejectNote] = useState('')
+  const [reviewing, setReviewing] = useState(false)
+  const [lockingStill, setLockingStill] = useState(false)
+  const [stillPanelOpen, setStillPanelOpen] = useState(true)
 
   // DnD sensors
   const sensors = useSensors(
@@ -423,6 +683,10 @@ export default function ShotEditorPage() {
     setEditForm({ title: scene.title ?? "", duration: String(scene.duration ?? "") })
     setLoadingTree(true)
     setLoadingAssets(true)
+    setLoadingStillCandidates(true)
+    setLockedStill(null)
+    setSelectedCandidateId(null)
+    setRejectNoteTarget(null)
     try {
       const tree = await apiClient.getSceneVersionTree(scene.id)
       setVersionTree(tree)
@@ -433,6 +697,17 @@ export default function ShotEditorPage() {
       setSceneAssets(assets)
     } catch { setSceneAssets([]) }
     setLoadingAssets(false)
+    // load still candidates
+    try {
+      const candidates = await apiClient.listStillCandidates(scene.id)
+      setStillCandidates(candidates)
+    } catch { setStillCandidates([]) }
+    setLoadingStillCandidates(false)
+    // load locked still
+    try {
+      const locked = await apiClient.getLockedStill(scene.id)
+      setLockedStill(locked)
+    } catch { setLockedStill(null) }
   }
 
   const handleSaveEdit = async () => {
@@ -566,6 +841,74 @@ export default function ShotEditorPage() {
     setBatchDurationSaving(false)
   }
 
+  /* ── Still candidate handlers ─────────────────────── */
+
+  const handleApproveStill = async (candidateId: string) => {
+    if (!detailScene) return
+    setReviewing(true)
+    try {
+      await apiClient.updateStillCandidate(candidateId, { status: 'approved' })
+      showToast('静帧已通过')
+      // reload candidates
+      const candidates = await apiClient.listStillCandidates(detailScene.id)
+      setStillCandidates(candidates)
+    } catch {
+      showToast('审核失败', 'error')
+    }
+    setReviewing(false)
+  }
+
+  const handleRejectStill = (candidateId: string) => {
+    setRejectNoteTarget(candidateId)
+    setRejectNote('')
+  }
+
+  const handleSubmitRejectStill = async () => {
+    if (!detailScene || !rejectNoteTarget) return
+    setReviewing(true)
+    try {
+      await apiClient.updateStillCandidate(rejectNoteTarget, {
+        status: 'rejected',
+        review_note: rejectNote || undefined,
+      })
+      showToast('静帧已拒绝')
+      setRejectNoteTarget(null)
+      setRejectNote('')
+      const candidates = await apiClient.listStillCandidates(detailScene.id)
+      setStillCandidates(candidates)
+    } catch {
+      showToast('拒绝失败', 'error')
+    }
+    setReviewing(false)
+  }
+
+  const handleCancelRejectStill = () => {
+    setRejectNoteTarget(null)
+    setRejectNote('')
+  }
+
+  const handleLockStill = async () => {
+    if (!detailScene || !selectedCandidateId) return
+    setLockingStill(true)
+    try {
+      await apiClient.lockStill(detailScene.id, selectedCandidateId)
+      showToast('静帧已锁定')
+      setSelectedCandidateId(null)
+      // reload
+      const candidates = await apiClient.listStillCandidates(detailScene.id)
+      setStillCandidates(candidates)
+      const locked = await apiClient.getLockedStill(detailScene.id)
+      setLockedStill(locked)
+      // reload scene to get updated shot_stage
+      const updatedScene = await apiClient.getScene(detailScene.id)
+      setDetailScene(updatedScene)
+      if (selectedEpId) await loadScenes(selectedEpId)
+    } catch {
+      showToast('锁定失败', 'error')
+    }
+    setLockingStill(false)
+  }
+
   const selectedEp = episodes.find((e) => e.id === selectedEpId)
 
   return (
@@ -621,14 +964,19 @@ export default function ShotEditorPage() {
                 </button>
               </div>
             )}
-            <GlassButton
-              variant="primary"
-              size="sm"
-              disabled={!selectedEpId}
-              onClick={() => setShowCreate(true)}
-            >
-              + 添加分镜
-            </GlassButton>
+            <div className="flex items-center gap-2">
+              <GlassButton
+                variant="primary"
+                size="sm"
+                disabled={!selectedEpId}
+                onClick={() => setShowCreate(true)}
+              >
+                + 添加分镜
+              </GlassButton>
+              {!selectedEpId && episodes.length === 0 && (
+                <span className="text-xs text-zinc-500">请先创建剧集</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -985,6 +1333,28 @@ export default function ShotEditorPage() {
                 <div className="text-zinc-500 text-sm py-4 text-center">暂无关联资源</div>
               )}
             </div>
+
+            {/* still candidate review */}
+            <StillCandidateReviewPanel
+              scene={detailScene}
+              candidates={stillCandidates}
+              lockedStill={lockedStill}
+              loading={loadingStillCandidates}
+              selectedId={selectedCandidateId}
+              onSelect={setSelectedCandidateId}
+              onApprove={handleApproveStill}
+              onReject={handleRejectStill}
+              onLock={handleLockStill}
+              locking={lockingStill}
+              reviewing={reviewing}
+              rejectNoteTarget={rejectNoteTarget}
+              rejectNote={rejectNote}
+              onRejectNoteChange={setRejectNote}
+              onSubmitReject={handleSubmitRejectStill}
+              onCancelReject={handleCancelRejectStill}
+              panelOpen={stillPanelOpen}
+              onTogglePanel={() => setStillPanelOpen((p) => !p)}
+            />
 
             {/* version tree */}
             <div>

@@ -9,18 +9,22 @@ from pydantic import BaseModel, Field
 class SceneCreate(BaseModel):
     episode_id: str = Field(..., description="所属剧集 ID")
     scene_no: int = Field(..., description="镜头序号")
-    title: Optional[str] = Field(None, max_length=256, description="场景标题")
+    title: Optional[str] = Field(None, max_length=256, description="镜头标题")
     duration: Optional[float] = Field(None, description="时长（秒）")
     status: str = Field(default="DRAFT", max_length=32, description="状态")
+    location_id: Optional[str] = Field(None, max_length=32, description="关联地点 ID")
+    shot_stage: str = Field(default="draft", max_length=32, description="镜头生产阶段：draft/script_parsed/still_generating/still_review/still_locked/video_generating/video_review/video_locked/compose_ready/delivery")
 
 
 class SceneUpdate(BaseModel):
     scene_no: Optional[int] = Field(None, description="镜头序号")
-    title: Optional[str] = Field(None, max_length=256, description="场景标题")
+    title: Optional[str] = Field(None, max_length=256, description="镜头标题")
     duration: Optional[float] = Field(None, description="时长（秒）")
     status: Optional[str] = Field(None, max_length=32, description="状态")
     locked_version_id: Optional[str] = Field(None, max_length=32, description="锁定版本 ID")
     character_ids: Optional[List[str]] = Field(None, description="关联角色 ID 列表")
+    location_id: Optional[str] = Field(None, max_length=32, description="关联地点 ID")
+    shot_stage: Optional[str] = Field(None, max_length=32, description="镜头生产阶段")
 
 
 class SceneRead(BaseModel):
@@ -32,6 +36,8 @@ class SceneRead(BaseModel):
     status: str
     locked_version_id: Optional[str] = None
     character_ids: List[str] = Field(default_factory=list, description="关联角色 ID 列表")
+    location_id: Optional[str] = None
+    shot_stage: str = "draft"
     created_at: datetime
     updated_at: datetime
 

@@ -8,6 +8,7 @@
 - 记录 provider_attempts 到 job_step metadata
 """
 
+import asyncio
 import hashlib
 import json
 import time
@@ -15,6 +16,8 @@ from typing import Any, Optional
 
 from database.models import Asset, AssetLink, JobStep, SceneVersion
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from services.storage.service import get_storage_service
 
 from .base import PipelineClient, PipelineError
 from .config import get_provider_config
@@ -237,12 +240,13 @@ class VideoGenerator(PipelineClient):
 
         video_data = await self._retry_wrapper(_download_video, timeout_category="video")
 
-        # 生成文件名
+        # 生成文件名并保存
         filename = f"kling_{scene_version.id[:8]}_{task_id[:8]}.mp4"
-        storage_path = f"videos/{filename}"
-
-        # TODO: 保存到 MinIO/local storage，这里先生成 mock URI
-        video_uri = f"file://{storage_path}"
+        storage_svc = get_storage_service()
+        save_result = await storage_svc.save_bytes(
+            video_data, filename, mime_type="video/mp4", prefix="videos",
+        )
+        video_uri = save_result["uri"]
 
         # 创建 Asset
         asset = Asset(
@@ -251,13 +255,14 @@ class VideoGenerator(PipelineClient):
             type="video",
             uri=video_uri,
             mime_type="video/mp4",
-            file_size=len(video_data),
+            file_size=save_result["size"],
             duration=payload["duration"],
             metadata_json={
                 "provider": "kling",
                 "task_id": task_id,
                 "prompt": prompt,
                 "model": payload["model"],
+                "checksum": save_result["checksum"],
             },
         )
         db.add(asset)
@@ -306,8 +311,6 @@ class VideoGenerator(PipelineClient):
         Returns:
             Asset: 生成的视频资产
         """
-        import asyncio
-
         # 构造请求 payload（根据 Seedance 实际 API 调整）
         payload = {
             "prompt": prompt,
@@ -383,12 +386,13 @@ class VideoGenerator(PipelineClient):
 
         video_data = await self._retry_wrapper(_download_video, timeout_category="video")
 
-        # 生成文件名
+        # 生成文件名并保存
         filename = f"seedance_{scene_version.id[:8]}_{task_id[:8]}.mp4"
-        storage_path = f"videos/{filename}"
-
-        # TODO: 保存到 MinIO/local storage
-        video_uri = f"file://{storage_path}"
+        storage_svc = get_storage_service()
+        save_result = await storage_svc.save_bytes(
+            video_data, filename, mime_type="video/mp4", prefix="videos",
+        )
+        video_uri = save_result["uri"]
 
         # 创建 Asset
         asset = Asset(
@@ -397,13 +401,14 @@ class VideoGenerator(PipelineClient):
             type="video",
             uri=video_uri,
             mime_type="video/mp4",
-            file_size=len(video_data),
+            file_size=save_result["size"],
             duration=payload["duration"],
             metadata_json={
                 "provider": "seedance",
                 "task_id": task_id,
                 "prompt": prompt,
                 "model": payload["model"],
+                "checksum": save_result["checksum"],
             },
         )
         db.add(asset)

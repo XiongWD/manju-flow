@@ -15,6 +15,8 @@ from pathlib import Path
 from database.models import Asset, AssetLink, SceneVersion
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.storage.service import get_storage_service
+
 from .base import PipelineError
 
 
@@ -93,21 +95,14 @@ class Compositor:
                 details={"audio_asset_id": audio_asset.id, "audio_uri": audio_asset.uri},
             )
 
-        # 生成输出文件名
+        # 通过 StorageService 保存合成结果
         output_filename = f"composed_{scene_version.id[:8]}.mp4"
-        output_path = self.output_dir / output_filename
+        tmp_output_path = self.output_dir / output_filename
 
         # 构造 ffmpeg 命令
-        # -i video_path: 输入视频
-        # -i audio_path: 输入音频
-        # -c:v copy: 视频流直接复制（不重新编码）
-        # -c:a aac: 音频编码为 AAC
-        # -map 0:v:0: 使用第一个输入的视频流
-        # -map 1:a:0: 使用第二个输入的音频流
-        # -shortest: 以较短的流为基准
         cmd = [
             "ffmpeg",
-            "-y",  # 覆盖输出文件
+            "-y",
             "-i", str(video_path),
             "-i", str(audio_path),
             "-c:v", "copy",
@@ -115,7 +110,7 @@ class Compositor:
             "-map", "0:v:0",
             "-map", "1:a:0",
             "-shortest",
-            str(output_path),
+            str(tmp_output_path),
         ]
 
         try:
@@ -153,33 +148,42 @@ class Compositor:
             )
 
         # 检查输出文件
-        if not os.path.exists(output_path):
+        if not os.path.exists(tmp_output_path):
             raise PipelineError(
-                message=f"ffmpeg output file not created: {output_path}",
+                message=f"ffmpeg output file not created: {tmp_output_path}",
                 error_type="provider_error",
                 details={"cmd": " ".join(cmd)},
             )
 
-        # 获取文件大小
-        file_size = os.path.getsize(output_path)
+        # 获取文件大小和时长
+        file_size = os.path.getsize(tmp_output_path)
+        duration = await self._get_video_duration(str(tmp_output_path))
 
-        # 获取时长（使用 ffprobe）
-        duration = await self._get_video_duration(str(output_path))
+        # 通过 StorageService 保存
+        storage_svc = get_storage_service()
+        save_result = await storage_svc.save_local_file(
+            str(tmp_output_path), output_filename,
+            mime_type="video/mp4", prefix="output",
+            metadata={"method": "ffmpeg", "cmd": " ".join(cmd)},
+        )
+        # 清理临时文件
+        if os.path.exists(tmp_output_path):
+            os.unlink(tmp_output_path)
 
-        # 创建 Asset
         asset = Asset(
             id=hashlib.sha256(output_filename.encode()).hexdigest()[:32],
             project_id=scene_version.scene.project_id if hasattr(scene_version.scene, 'project_id') else None,
             type="video",
-            uri=f"file://{output_path}",
+            uri=save_result["uri"],
             mime_type="video/mp4",
-            file_size=file_size,
+            file_size=save_result["size"],
             duration=duration,
             metadata_json={
                 "video_asset_id": video_asset.id,
                 "audio_asset_id": audio_asset.id,
                 "method": "ffmpeg",
                 "cmd": " ".join(cmd),
+                "checksum": save_result["checksum"],
             },
         )
         db.add(asset)

@@ -74,6 +74,7 @@ export type {
   DeliveryPackageCreate,
   PublishJob,
   PublishJobCreate,
+  Location,
 } from '../lib/api-client';
 
 // ── Supplemental enum/union types (not in api-client.ts) ─────────────────

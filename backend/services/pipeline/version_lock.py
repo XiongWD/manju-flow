@@ -227,12 +227,15 @@ n        - 新版本的 parent_version_id 指向基准版本
             episode_id: 剧集 ID
 
         Returns:
-            tuple[Job, SceneVersion]: (新 job, 新 scene_version)
+            tuple[None, SceneVersion]: (None, 新 scene_version)
+            Job 在后台创建，不随请求返回。
 
         Raises:
             ValueError: 版本不存在或不属于该场景
         """
-        from services.pipeline.orchestrator import start_scene_job
+        import asyncio
+        from database.connection import async_session_factory
+        from services.pipeline.runner import submit_scene_job_bg
         from sqlalchemy import func
 
         scene = await db.get(Scene, scene_id)
@@ -271,16 +274,19 @@ n        - 新版本的 parent_version_id 指向基准版本
         db.add(new_sv)
         await db.flush()
 
-        # 启动新 job
-        job = await start_scene_job(
-            db=db,
+        # 提交新 scene_version，然后后台启动 pipeline
+        await db.commit()
+        await db.refresh(new_sv)
+
+        # 后台执行完整 pipeline（自带独立 db session）
+        asyncio.create_task(submit_scene_job_bg(
             scene_id=scene_id,
             project_id=project_id,
             episode_id=episode_id,
             parent_version_id=new_sv.id,
-        )
+        ))
 
-        return (job, new_sv)
+        return (None, new_sv)
 
     @staticmethod
     async def get_version_diff(

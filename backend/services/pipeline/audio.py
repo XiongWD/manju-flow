@@ -16,6 +16,8 @@ from typing import Optional
 from database.models import Asset, AssetLink, JobStep, SceneVersion
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.storage.service import get_storage_service
+
 from .base import PipelineClient, PipelineError
 from .config import get_provider_config
 
@@ -175,26 +177,27 @@ class AudioGenerator(PipelineClient):
 
         audio_data = await self._retry_wrapper(_create_tts, timeout_category="audio")
 
-        # 生成文件名
+        # 保存音频
         filename = f"elevenlabs_{scene_version.id[:8]}_{voice_id[:8]}.mp3"
-        storage_path = f"audio/{filename}"
-
-        # TODO: 保存到 MinIO/local storage
-        audio_uri = f"file://{storage_path}"
+        storage_svc = get_storage_service()
+        save_result = await storage_svc.save_bytes(
+            audio_data, filename, mime_type="audio/mpeg", prefix="audio",
+        )
 
         # 创建 Asset
         asset = Asset(
             id=hashlib.sha256(filename.encode()).hexdigest()[:32],
             project_id=scene_version.scene.project_id if hasattr(scene_version.scene, 'project_id') else None,
             type="audio",
-            uri=audio_uri,
+            uri=save_result["uri"],
             mime_type="audio/mpeg",
-            file_size=len(audio_data),
+            file_size=save_result["size"],
             metadata_json={
                 "provider": "elevenlabs",
                 "voice_id": voice_id,
                 "model": model_id,
                 "text_length": len(text),
+                "checksum": save_result["checksum"],
             },
         )
         db.add(asset)
@@ -262,26 +265,27 @@ class AudioGenerator(PipelineClient):
 
         audio_data = await self._retry_wrapper(_create_tts, timeout_category="audio")
 
-        # 生成文件名
+        # 保存音频
         filename = f"fish_audio_{scene_version.id[:8]}_{voice_id[:8]}.mp3"
-        storage_path = f"audio/{filename}"
-
-        # TODO: 保存到 MinIO/local storage
-        audio_uri = f"file://{storage_path}"
+        storage_svc = get_storage_service()
+        save_result = await storage_svc.save_bytes(
+            audio_data, filename, mime_type="audio/mpeg", prefix="audio",
+        )
 
         # 创建 Asset
         asset = Asset(
             id=hashlib.sha256(filename.encode()).hexdigest()[:32],
             project_id=scene_version.scene.project_id if hasattr(scene_version.scene, 'project_id') else None,
             type="audio",
-            uri=audio_uri,
+            uri=save_result["uri"],
             mime_type="audio/mpeg",
-            file_size=len(audio_data),
+            file_size=save_result["size"],
             metadata_json={
                 "provider": "fish_audio",
                 "voice_id": voice_id,
                 "model": model_id,
                 "text_length": len(text),
+                "checksum": save_result["checksum"],
             },
         )
         db.add(asset)
@@ -346,16 +350,19 @@ class AudioGenerator(PipelineClient):
         }
 
         filename = f"bgm_{scene_version.id[:8]}_{style[:8]}.mp3"
-        storage_path = f"audio/bgm/{filename}"
-        audio_uri = f"file://{storage_path}"
+        # Mock: 无实际音频数据，生成空占位
+        storage_svc = get_storage_service()
+        save_result = await storage_svc.save_bytes(
+            b"", filename, mime_type="audio/mpeg", prefix="audio/bgm",
+        )
 
         asset = Asset(
             id=hashlib.sha256(f"bgm_{filename}".encode()).hexdigest()[:32],
             project_id=scene_version.scene.project_id if hasattr(scene_version.scene, 'project_id') else None,
             type="audio",
-            uri=audio_uri,
+            uri=save_result["uri"],
             mime_type="audio/mpeg",
-            file_size=0,
+            file_size=save_result["size"],
             duration=duration_sec,
             metadata_json={
                 "provider": provider,
@@ -444,13 +451,19 @@ class AudioGenerator(PipelineClient):
 
         content = json.dumps(loudness_data, ensure_ascii=False, indent=2)
         filename = f"loudness_{scene_version.id[:8]}.json"
+
+        storage_svc = get_storage_service()
+        save_result = await storage_svc.save_json(
+            loudness_data, filename, prefix="detection",
+        )
+
         asset = Asset(
             id=hashlib.sha256(f"loudness_{filename}".encode()).hexdigest()[:32],
             project_id=scene_version.scene.project_id if hasattr(scene_version.scene, 'project_id') else None,
             type="detection_json",
-            uri=f"file://storage/detection/{filename}",
+            uri=save_result["uri"],
             mime_type="application/json",
-            file_size=len(content.encode()),
+            file_size=save_result["size"],
             metadata_json={
                 "source": "loudness_detection",
                 "gate_codes": ["G8", "G9"],
@@ -536,13 +549,18 @@ class AudioGenerator(PipelineClient):
         content = json.dumps(alignment_data, ensure_ascii=False, indent=2)
         filename = f"alignment_{scene_version.id[:8]}.json"
 
+        storage_svc = get_storage_service()
+        save_result = await storage_svc.save_json(
+            alignment_data, filename, prefix="detection",
+        )
+
         asset = Asset(
             id=hashlib.sha256(f"alignment_{filename}".encode()).hexdigest()[:32],
             project_id=scene_version.scene.project_id if hasattr(scene_version.scene, 'project_id') else None,
             type="detection_json",
-            uri=f"file://storage/detection/{filename}",
+            uri=save_result["uri"],
             mime_type="application/json",
-            file_size=len(content.encode()),
+            file_size=save_result["size"],
             metadata_json={
                 "source": "alignment_report",
                 "gate_codes": ["G8"],

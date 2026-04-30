@@ -1,4 +1,4 @@
-"""Manju Production OS — 全部 20 个 ORM 模型
+"""Manju Production OS — 全部 30 个 ORM 模型
 
 模型清单：
 1.  projects           2.  project_configs     3.  story_bibles
@@ -7,7 +7,9 @@
 10. asset_links         11. jobs               12. job_steps
 13. qa_runs             14. qa_issues          15. publish_jobs
 16. publish_variants    17. analytics_snapshots 18. knowledge_items
-19. api_keys            20. delivery_packages
+19. api_keys            20. delivery_packages   21. job_events
+22. locations           23. script_parse_reports 24. shot_import_reports
+25. script_issues       26. still_candidates
 """
 
 from datetime import datetime
@@ -61,6 +63,10 @@ class Project(Base):
     characters: Mapped[list["Character"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     episodes: Mapped[list["Episode"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     knowledge_items: Mapped[list["KnowledgeItem"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    locations: Mapped[list["Location"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    props: Mapped[list["Prop"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    prompt_templates: Mapped[list["PromptTemplate"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    cost_records: Mapped[list["CostRecord"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
 # ─── 2. project_configs ─────────────────────────────────────────────────────
@@ -196,6 +202,11 @@ class Scene(Base):
     characters: Mapped[list["Character"]] = relationship(
         secondary="scene_characters", back_populates="scenes"
     )
+    location_id: Mapped[Optional[str]] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"), comment="关联地点 ID")
+    shot_stage: Mapped[str] = mapped_column(String(32), default="draft", comment="镜头生产阶段：draft/script_parsed/still_generating/still_review/still_locked/video_generating/video_review/video_locked/compose_ready/delivery")
+    location: Mapped[Optional["Location"]] = relationship()
+    locked_still_id: Mapped[Optional[str]] = mapped_column(String(32), comment="锁定的静帧候选 ID")
+    still_candidates: Mapped[list["StillCandidate"]] = relationship(back_populates="scene", cascade="all, delete-orphan")
 
 
 # ─── 7b. scene_characters (junction) ─────────────────────────────
@@ -504,3 +515,226 @@ class ApiKey(Base):
     last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+# ─── 22. locations ─────────────────────────────────────────────────────────
+
+class Location(Base):
+    __tablename__ = "locations"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False, comment="地点名称（如：灵异古铺、现代办公室）")
+    description: Mapped[Optional[str]] = mapped_column(Text, comment="地点描述")
+    visual_style: Mapped[Optional[str]] = mapped_column(String(256), comment="视觉风格描述")
+    reference_asset_id: Mapped[Optional[str]] = mapped_column(String(32), comment="参考图资产 ID")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    project: Mapped["Project"] = relationship(back_populates="locations")
+
+
+# ─── 21. job_events ─────────────────────────────────────────────────────────
+
+class JobEvent(Base):
+    __tablename__ = "job_events"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    job_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(32), default="progress")
+    step_key: Mapped[Optional[str]] = mapped_column(String(64))
+    job_status: Mapped[Optional[str]] = mapped_column(String(32))
+    step_status: Mapped[Optional[str]] = mapped_column(String(32))
+    progress_percent: Mapped[Optional[int]] = mapped_column(Integer)
+    message: Mapped[Optional[str]] = mapped_column(Text)
+    payload_json: Mapped[Optional[dict]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+# ─── 23. script_parse_reports ─────────────────────────────────────────────
+
+class ScriptParseReport(Base):
+    __tablename__ = "script_parse_reports"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    episode_id: Mapped[str] = mapped_column(ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False)
+    total_shots: Mapped[int] = mapped_column(Integer, default=0, comment="解析出的镜头总数")
+    parsed_shots: Mapped[int] = mapped_column(Integer, default=0, comment="成功解析的镜头数")
+    failed_shots: Mapped[int] = mapped_column(Integer, default=0, comment="解析失败的镜头数")
+    parse_method: Mapped[str] = mapped_column(String(32), default="rule", comment="解析方式：rule/llm")
+    raw_issues: Mapped[Optional[dict]] = mapped_column(JSON, comment="原始解析问题")
+    status: Mapped[str] = mapped_column(String(32), default="completed", comment="completed/partial/failed")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    shot_reports: Mapped[list["ShotImportReport"]] = relationship(back_populates="parse_report", cascade="all, delete-orphan")
+    issues: Mapped[list["ScriptIssue"]] = relationship(back_populates="parse_report", cascade="all, delete-orphan")
+
+
+# ─── 24. shot_import_reports ───────────────────────────────────────────────
+
+class ShotImportReport(Base):
+    __tablename__ = "shot_import_reports"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    parse_report_id: Mapped[str] = mapped_column(ForeignKey("script_parse_reports.id", ondelete="CASCADE"), nullable=False)
+    scene_id: Mapped[Optional[str]] = mapped_column(String(32), comment="关联的 Scene(Shot) ID")
+    shot_no: Mapped[Optional[int]] = mapped_column(Integer, comment="镜号")
+    title: Mapped[Optional[str]] = mapped_column(String(256), comment="镜头标题")
+    location_name: Mapped[Optional[str]] = mapped_column(String(256), comment="识别到的地点名称")
+    character_names: Mapped[Optional[dict]] = mapped_column(JSON, comment="识别到的角色名列表")
+    dialogue: Mapped[Optional[str]] = mapped_column(Text, comment="对白内容")
+    action: Mapped[Optional[str]] = mapped_column(Text, comment="动作描述")
+    estimated_duration: Mapped[Optional[float]] = mapped_column(Float, comment="预计时长（秒）")
+    prop_hints: Mapped[Optional[dict]] = mapped_column(JSON, comment="道具提示列表")
+    import_status: Mapped[str] = mapped_column(String(32), default="success", comment="success/skipped/error")
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    parse_report: Mapped["ScriptParseReport"] = relationship(back_populates="shot_reports")
+
+
+# ─── 25. script_issues ─────────────────────────────────────────────────────
+
+class ScriptIssue(Base):
+    __tablename__ = "script_issues"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    parse_report_id: Mapped[str] = mapped_column(ForeignKey("script_parse_reports.id", ondelete="CASCADE"), nullable=False)
+    issue_type: Mapped[str] = mapped_column(String(32), comment="解析问题类型：ambiguous_character/missing_location/unclear_action/format_error/unknown")
+    severity: Mapped[str] = mapped_column(String(16), default="warning", comment="warning/error")
+    line_number: Mapped[Optional[int]] = mapped_column(Integer, comment="原文行号")
+    original_text: Mapped[Optional[str]] = mapped_column(Text, comment="原始文本片段")
+    message: Mapped[Optional[str]] = mapped_column(Text, comment="问题描述")
+    suggested_fix: Mapped[Optional[str]] = mapped_column(Text, comment="建议修复方式")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    parse_report: Mapped["ScriptParseReport"] = relationship(back_populates="issues")
+
+
+# ─── 26. props ──────────────────────────────────────────────────────────────
+
+class Prop(Base):
+    __tablename__ = "props"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False, comment="道具名称（如：古玉、照片、钥匙）")
+    description: Mapped[Optional[str]] = mapped_column(Text, comment="道具描述")
+    category: Mapped[Optional[str]] = mapped_column(String(64), comment="道具类别：weapon/document/electronic/clothing/other")
+    reference_asset_id: Mapped[Optional[str]] = mapped_column(String(32), comment="参考图资产 ID")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    project: Mapped["Project"] = relationship(back_populates="props")
+
+
+# ─── 27. prop_states ────────────────────────────────────────────────────────
+
+class PropState(Base):
+    __tablename__ = "prop_states"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    prop_id: Mapped[str] = mapped_column(ForeignKey("props.id", ondelete="CASCADE"), nullable=False)
+    scene_id: Mapped[Optional[str]] = mapped_column(ForeignKey("scenes.id", ondelete="SET NULL"), comment="关联镜头 ID")
+    state_description: Mapped[Optional[str]] = mapped_column(Text, comment="状态描述（如：完好、碎裂、发光）")
+    visual_notes: Mapped[Optional[str]] = mapped_column(Text, comment="视觉提示（如：泛着绿光、有裂纹）")
+    changed_from_state_id: Mapped[Optional[str]] = mapped_column(String(32), comment="从哪个状态变更而来")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    prop: Mapped["Prop"] = relationship()
+    scene: Mapped[Optional["Scene"]] = relationship()
+
+
+# ─── 26. still_candidates ─────────────────────────────────────────────────
+
+class StillCandidate(Base):
+    __tablename__ = "still_candidates"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    scene_id: Mapped[str] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), nullable=False, comment="关联镜头 ID")
+    version: Mapped[int] = mapped_column(Integer, default=1, comment="候选版本号")
+    image_path: Mapped[str] = mapped_column(String(512), comment="静帧图片存储路径")
+    thumbnail_path: Mapped[Optional[str]] = mapped_column(String(512), comment="缩略图路径")
+    prompt_used: Mapped[Optional[str]] = mapped_column(Text, comment="生成时使用的 prompt")
+    seed: Mapped[Optional[int]] = mapped_column(Integer, comment="生成 seed")
+    status: Mapped[str] = mapped_column(String(16), default="pending", comment="候选状态：pending/approved/rejected")
+    review_note: Mapped[Optional[str]] = mapped_column(Text, comment="审核备注")
+    reviewed_by: Mapped[Optional[str]] = mapped_column(String(64), comment="审核人")
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, comment="审核时间")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    scene: Mapped["Scene"] = relationship(back_populates="still_candidates")
+
+
+# ─── 28. prompt_templates ───────────────────────────────────────────────────
+
+class PromptTemplate(Base):
+    __tablename__ = "prompt_templates"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False, comment="模板名称")
+    category: Mapped[str] = mapped_column(String(64), default="general", comment="模板类别：character/location/prop/action/style/general")
+    template_text: Mapped[Optional[str]] = mapped_column(Text, comment="模板文本，可用 {character_desc} {location_desc} 等占位符")
+    version: Mapped[int] = mapped_column(Integer, default=1, comment="模板版本号")
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否为默认模板")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    project: Mapped["Project"] = relationship(back_populates="prompt_templates")
+
+
+# ─── 30. complexity_profiles ──────────────────────────────────────────────
+
+# ─── 31. cost_records ────────────────────────────────────────────────────────
+
+class CostRecord(Base):
+    __tablename__ = "cost_records"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    scene_id: Mapped[Optional[str]] = mapped_column(ForeignKey("scenes.id", ondelete="SET NULL"), comment="关联镜头 ID")
+    scene_version_id: Mapped[Optional[str]] = mapped_column(String(32), comment="关联版本 ID")
+    job_id: Mapped[Optional[str]] = mapped_column(String(32), comment="关联 Job ID")
+
+    cost_type: Mapped[str] = mapped_column(String(32), nullable=False, comment="成本类型：image_generate/video_generate/audio_generate/storage/api_call")
+    provider: Mapped[Optional[str]] = mapped_column(String(64), comment="Provider 名称：kling/seedance/mock 等")
+    model: Mapped[Optional[str]] = mapped_column(String(64), comment="使用的模型")
+
+    # 计量
+    input_tokens: Mapped[Optional[int]] = mapped_column(Integer, comment="输入 token 数")
+    output_tokens: Mapped[Optional[int]] = mapped_column(Integer, comment="输出 token 数")
+    duration_seconds: Mapped[Optional[float]] = mapped_column(Float, comment="生成内容时长（秒）")
+    api_calls: Mapped[int] = mapped_column(Integer, default=1, comment="API 调用次数")
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, comment="重试次数")
+
+    # 费用（单位：美元）
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0, comment="实际费用")
+    estimated_cost_usd: Mapped[Optional[float]] = mapped_column(Float, comment="估算费用（用于无实际计费时）")
+
+    # 元数据
+    metadata_json: Mapped[Optional[str]] = mapped_column(Text, comment="额外信息 JSON")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    project: Mapped["Project"] = relationship()
+    scene: Mapped[Optional["Scene"]] = relationship()
+
+
+# ─── 30. complexity_profiles ──────────────────────────────────────────────
+
+class ComplexityProfile(Base):
+    __tablename__ = "complexity_profiles"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    scene_id: Mapped[str] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), nullable=False, unique=True, comment="关联镜头 ID")
+    overall_score: Mapped[float] = mapped_column(Float, comment="综合复杂度评分 0.0-10.0")
+    character_count: Mapped[int] = mapped_column(Integer, default=0, comment="角色数量")
+    has_location: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否有地点")
+    duration_score: Mapped[float] = mapped_column(Float, default=0, comment="时长复杂度分")
+    character_score: Mapped[float] = mapped_column(Float, default=0, comment="角色复杂度分")
+    action_score: Mapped[float] = mapped_column(Float, default=0, comment="动作复杂度分")
+    style_score: Mapped[float] = mapped_column(Float, default=0, comment="风格复杂度分")
+    breakdown: Mapped[Optional[str]] = mapped_column(Text, comment="评分明细 JSON")
+    calculated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    scene: Mapped["Scene"] = relationship()

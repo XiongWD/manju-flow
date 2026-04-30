@@ -53,11 +53,11 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   },
 ]
 
-export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; onToggle?: () => void }) {
+export function Sidebar({ collapsed = false, onToggle, mobile = false }: { collapsed?: boolean; onToggle?: () => void; mobile?: boolean }) {
   const pathname = usePathname()
 
   return (
-    <aside className={`relative fixed left-0 top-0 z-30 flex h-screen flex-col transition-all duration-200 ${collapsed ? 'w-[84px]' : 'w-[248px]'}`}>
+    <aside className={`relative fixed left-0 top-0 flex h-screen flex-col transition-all duration-200 ${mobile ? 'z-50 w-[280px]' : collapsed ? 'z-30 w-[84px]' : 'z-30 w-[248px]'}`}>
       {/* 右边渐变分割线 — 不用 border-r */}
       <div className="pointer-events-none absolute right-0 top-0 h-full w-px bg-gradient-to-b from-white/[0.06] via-white/[0.03] to-transparent" />
 

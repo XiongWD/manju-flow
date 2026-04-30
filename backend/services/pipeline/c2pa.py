@@ -19,6 +19,8 @@ from datetime import datetime
 from database.models import Asset, AssetLink, JobStep, SceneVersion
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.storage.service import get_storage_service
+
 from .base import PipelineError
 from .config import get_c2pa_config
 
@@ -177,17 +179,24 @@ class C2PASigner:
                     details={"cmd": cmd, "output_path": output_path},
                 )
 
-            # 5. 创建新 Asset
-            output_file_size = os.path.getsize(output_path)
-            output_uri = f"file://{output_path}"
+            # 5. 通过 StorageService 保存签名后的文件
+            storage_svc = get_storage_service()
+            save_result = await storage_svc.save_local_file(
+                output_path, output_filename,
+                mime_type=input_asset.mime_type or "application/octet-stream",
+                prefix="c2pa",
+            )
+            # 清理临时文件
+            if os.path.exists(output_path):
+                os.unlink(output_path)
 
             output_asset = Asset(
                 id=hashlib.sha256(output_filename.encode()).hexdigest()[:32],
                 project_id=input_asset.project_id,
                 type=input_asset.type,
-                uri=output_uri,
+                uri=save_result["uri"],
                 mime_type=input_asset.mime_type,
-                file_size=output_file_size,
+                file_size=save_result["size"],
                 duration=input_asset.duration,
                 metadata_json={
                     "c2pa_signed": True,

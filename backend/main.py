@@ -1,11 +1,13 @@
 """Manju Production OS — FastAPI 入口"""
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Set
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from database.connection import Base, async_engine
 from routers import (
@@ -23,6 +25,15 @@ from routers import (
     files_router,
     story_bibles_router,
     characters_router,
+    locations_router,
+    script_parse_router,
+    props_router,
+    prompt_templates_router,
+    stills_router,
+    complexity_router,
+    timeline_router,
+    costs_router,
+    status_router,
 )
 
 # ── WebSocket 连接池 ──
@@ -65,9 +76,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 注册 progress callback
     register_progress_callback(_broadcast_progress)
 
-    # 建表
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # 建表（可通过 DB_AUTO_CREATE=false 禁止）
+    if os.getenv("DB_AUTO_CREATE", "true").lower() != "false":
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
     yield
     await async_engine.dispose()
 
@@ -81,10 +93,11 @@ app = FastAPI(
 )
 
 # CORS
+_cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[o.strip() for o in _cors_origins],
+    allow_credentials=_cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -104,6 +117,26 @@ app.include_router(workspace_router)
 app.include_router(files_router)
 app.include_router(story_bibles_router)
 app.include_router(characters_router)
+app.include_router(locations_router)
+app.include_router(script_parse_router)
+app.include_router(props_router)
+app.include_router(prompt_templates_router)
+app.include_router(stills_router)
+app.include_router(complexity_router)
+app.include_router(timeline_router)
+app.include_router(costs_router)
+app.include_router(status_router)
+
+
+# ── 全局异常处理器 ──
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"code": "INTERNAL_ERROR", "message": "服务器内部错误", "details": {}},
+    )
 
 
 # WebSocket 升级版本
@@ -184,7 +217,7 @@ async def seed_demo_data():
             project_id=pid,
             episode_no=1,
             title="第一章：复仇的开始",
-            synopsis="女主发现丈夫背叛，开始策划复仇",
+            outline="女主发现丈夫背叛，开始策划复仇",
             status="DRAFT",
         )
         session.add(episode)
@@ -192,12 +225,10 @@ async def seed_demo_data():
         for i in range(3):
             scene = Scene(
                 id=uuid.uuid4().hex,
-                project_id=pid,
                 episode_id=eid,
-                scene_no=f"S{i+1:03d}",
+                scene_no=i+1,
                 title=f"场景 {i+1}",
                 status="DRAFT",
-                beat_sheet={"beat": f"beat_{i+1}"},
             )
             session.add(scene)
 

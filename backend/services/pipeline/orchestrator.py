@@ -19,12 +19,14 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database.connection import async_session_factory
 from database.models import (
     Asset,
     AssetLink,
     Character,
     Episode,
     Job,
+    JobEvent,
     JobStep,
     Project,
     QAIssue,
@@ -131,8 +133,8 @@ def _uuid() -> str:
     return uuid.uuid4().hex
 
 
-# ── 进度存储（内存，生产环境应换 Redis / DB） ──
-_progress_events: dict[str, list[dict]] = {}  # job_id -> [events]
+# ── 进度存储（内存缓存 + DB 持久化） ──
+_progress_events: dict[str, list[dict]] = {}  # job_id -> [events]  # 内存缓存
 
 # WebSocket 广播回调（由 main.py 注册）
 _progress_callback: Optional[callable] = None
@@ -144,29 +146,106 @@ def register_progress_callback(callback: callable):
     _progress_callback = callback
 
 
+async def _persist_event_to_db(event: dict):
+    """将进度事件异步写入数据库（fire-and-forget）"""
+    try:
+        async with async_session_factory() as session:
+            db_event = JobEvent(
+                job_id=event.get("job_id", ""),
+                event_type=event.get("event_type", "progress"),
+                step_key=event.get("step_key"),
+                job_status=event.get("job_status"),
+                step_status=event.get("step_status"),
+                progress_percent=event.get("progress_percent"),
+                message=event.get("message"),
+                payload_json=event.get("payload"),
+            )
+            session.add(db_event)
+            await session.commit()
+    except Exception as e:
+        print(f"[Orchestrator] Failed to persist progress event to DB: {e}")
+
+
 def _record_progress(event: dict):
-    """记录进度事件并触发广播"""
+    """记录进度事件：写内存缓存 + 异步写 DB + 触发广播"""
     job_id = event["job_id"]
+
+    # 1. 写入内存缓存
     if job_id not in _progress_events:
         _progress_events[job_id] = []
     _progress_events[job_id].append(event)
 
-    # 触发 WebSocket 广播
+    # 2. 异步写入数据库（fire-and-forget，失败不影响主流程）
+    try:
+        loop = asyncio.get_running_loop()
+        asyncio.ensure_future(_persist_event_to_db(event))
+    except RuntimeError:
+        # 没有运行中的 event loop（纯 sync 上下文），打印 warning
+        print(f"[Orchestrator] WARNING: no event loop, skipping DB persist for job={job_id}")
+
+    # 3. 触发 WebSocket 广播
     if _progress_callback:
         try:
-            _progress_callback(event)
+            asyncio.ensure_future(_progress_callback(event))
         except Exception as e:
             # 广播失败不影响主流程
             print(f"[Orchestrator] Progress callback failed: {e}")
 
 
-def get_job_progress(job_id: str) -> list[dict]:
-    """获取 job 的进度时间线"""
+async def get_job_progress(job_id: str) -> list[dict]:
+    """获取 job 的进度时间线（DB 优先，内存 fallback）"""
+    try:
+        async with async_session_factory() as session:
+            from sqlalchemy import select
+            result = await session.execute(
+                select(JobEvent).where(JobEvent.job_id == job_id).order_by(JobEvent.created_at.asc())
+            )
+            db_events = result.scalars().all()
+            if db_events:
+                return [
+                    {
+                        "id": e.id,
+                        "job_id": e.job_id,
+                        "event_type": e.event_type,
+                        "step_key": e.step_key,
+                        "job_status": e.job_status,
+                        "step_status": e.step_status,
+                        "progress_percent": e.progress_percent,
+                        "message": e.message,
+                        "payload": e.payload_json,
+                        "timestamp": e.created_at.isoformat() if e.created_at else None,
+                    }
+                    for e in db_events
+                ]
+    except Exception as e:
+        print(f"[Orchestrator] Failed to read progress from DB, falling back to memory: {e}")
     return _progress_events.get(job_id, [])
 
 
-def get_job_latest_progress(job_id: str) -> Optional[dict]:
-    """获取 job 的最新进度事件"""
+async def get_job_latest_progress(job_id: str) -> Optional[dict]:
+    """获取 job 的最新进度事件（DB 优先，内存 fallback）"""
+    try:
+        async with async_session_factory() as session:
+            from sqlalchemy import select
+            result = await session.execute(
+                select(JobEvent).where(JobEvent.job_id == job_id).order_by(JobEvent.created_at.desc()).limit(1)
+            )
+            db_event = result.scalar_one_or_none()
+            if db_event:
+                return {
+                    "id": db_event.id,
+                    "job_id": db_event.job_id,
+                    "event_type": db_event.event_type,
+                    "step_key": db_event.step_key,
+                    "job_status": db_event.job_status,
+                    "step_status": db_event.step_status,
+                    "progress_percent": db_event.progress_percent,
+                    "message": db_event.message,
+                    "payload": db_event.payload_json,
+                    "timestamp": db_event.created_at.isoformat() if db_event.created_at else None,
+                }
+    except Exception as e:
+        print(f"[Orchestrator] Failed to read latest progress from DB, falling back to memory: {e}")
     events = _progress_events.get(job_id, [])
     return events[-1] if events else None
 
@@ -1256,7 +1335,7 @@ async def get_job_with_steps(db: AsyncSession, job_id: str) -> Optional[dict]:
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
         "steps": [],
-        "progress": get_job_latest_progress(job_id),
+        "progress": await get_job_latest_progress(job_id),
     }
 
     steps_result = await db.execute(

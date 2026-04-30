@@ -12,6 +12,8 @@ QA Gate 模块：
 import hashlib
 import json
 import os
+import shutil
+import subprocess
 from typing import Optional
 
 from database.models import (
@@ -22,7 +24,47 @@ from database.models import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.storage.service import get_storage_service
+
 from .base import PipelineError
+
+
+def _get_ffprobe_path() -> Optional[str]:
+    """获取 ffprobe 可执行文件路径"""
+    return shutil.which("ffprobe")
+
+
+def _probe_media(uri: str) -> Optional[dict]:
+    """使用 ffprobe 获取媒体文件信息
+
+    返回 dict 包含 format/stream 信息，或 None（ffprobe 不可用/文件不存在/解析失败）
+    """
+    ffprobe = _get_ffprobe_path()
+    if not ffprobe:
+        return None
+
+    # 从 URI 解析本地路径
+    local_path = None
+    if uri and uri.startswith("file://"):
+        local_path = uri[7:]
+    elif uri and os.path.exists(uri):
+        local_path = uri
+
+    if not local_path or not os.path.exists(local_path):
+        return None
+
+    try:
+        result = subprocess.run(
+            [ffprobe, "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", local_path],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
+        pass
+    return None
 
 
 class QAGate:
@@ -52,30 +94,38 @@ class QAGate:
             "name": "视频质量检查",
             "subject_types": ["scene_version", "asset"],
             "asset_types": ["video", "mixed_audio"],
-            "checks": ["file_exists", "file_size", "duration"],
+            "checks": ["file_exists", "file_size", "duration", "media_format"],
             "thresholds": {
                 "min_file_size": 1024,  # 至少 1KB
                 "min_duration": 0.5,  # 至少 0.5 秒
+                "min_width": 640,
+                "min_height": 480,
+                "min_fps": 15,
             },
         },
         "G8": {
             "name": "音频质量检查",
             "subject_types": ["scene_version", "asset"],
             "asset_types": ["audio"],
-            "checks": ["file_exists", "file_size", "duration"],
+            "checks": ["file_exists", "file_size", "duration", "media_format"],
             "thresholds": {
                 "min_file_size": 512,  # 至少 512 字节
                 "min_duration": 0.1,  # 至少 0.1 秒
+                "require_audio": True,
             },
         },
         "G9": {
             "name": "合成质量检查",
             "subject_types": ["scene_version", "asset"],
             "asset_types": ["mixed_audio"],
-            "checks": ["file_exists", "file_size", "duration"],
+            "checks": ["file_exists", "file_size", "duration", "media_format"],
             "thresholds": {
                 "min_file_size": 1024,
                 "min_duration": 0.5,
+                "min_width": 640,
+                "min_height": 480,
+                "min_fps": 15,
+                "require_audio": True,
             },
         },
     }
@@ -190,17 +240,23 @@ class QAGate:
         evidence_content = json.dumps(evidence_data, ensure_ascii=False, indent=2)
         evidence_filename = f"qa_{gate_code}_{subject_id[:8]}_{qa_run.id[:8]}.json"
 
+        storage_svc = get_storage_service()
+        save_result = await storage_svc.save_json(
+            evidence_data, evidence_filename, prefix="qa",
+        )
+
         evidence_asset = Asset(
             id=hashlib.sha256(evidence_filename.encode()).hexdigest()[:32],
             project_id=project_id,
             type="qa_evidence",
-            uri=f"file://storage/qa/{evidence_filename}",
+            uri=save_result["uri"],
             mime_type="application/json",
-            file_size=len(evidence_content.encode()),
+            file_size=save_result["size"],
             metadata_json={
                 "gate_code": gate_code,
                 "qa_run_id": qa_run.id,
                 "status": status,
+                "checksum": save_result["checksum"],
             },
         )
         db.add(evidence_asset)
@@ -285,6 +341,8 @@ class QAGate:
                 result = await self._check_character_asset_linked(db, asset)
             elif check_name == "ip_adapter_similarity":
                 result = self._check_ip_adapter_similarity(asset, gate_def["thresholds"])
+            elif check_name == "media_format":
+                result = await self._check_media_format(asset, gate_def["thresholds"])
             else:
                 # 未知检查，默认通过
                 result = {
@@ -346,12 +404,6 @@ class QAGate:
             "details": {"duration": duration, "min_duration": min_duration},
         }
 
-    def _get_severity(self, check_name: str) -> str:
-        """获取问题严重程度"""
-        # 043a 阶段：所有失败都是 critical
-        # TODO: 043b 阶段根据检查类型分级
-        return "critical"
-
     def _get_suggested_action(self, gate_code: str, check_name: str) -> str:
         """获取建议修复动作"""
         actions = {
@@ -366,16 +418,19 @@ class QAGate:
                 "file_exists": "检查视频生成输出路径配置",
                 "file_size": "视频文件过小，可能生成失败，重试生成",
                 "duration": "视频时长不足，检查 prompt 和参数配置",
+                "media_format": "视频媒体格式不符合要求（分辨率/帧率/时长），检查生成参数",
             },
             "G8": {
                 "file_exists": "检查音频生成输出路径配置",
                 "file_size": "音频文件过小，可能生成失败，重试生成",
                 "duration": "音频时长不足，检查 TTS 文本和配置",
+                "media_format": "音频媒体格式不符合要求（缺音轨/时长），检查生成配置",
             },
             "G9": {
                 "file_exists": "检查合成输出路径配置",
                 "file_size": "合成文件过小，ffmpeg 可能失败，检查日志",
                 "duration": "合成时长不足，检查视频和音频时长匹配",
+                "media_format": "合成媒体格式不符合要求（分辨率/音轨），检查 ffmpeg 合成参数",
             },
         }
 
@@ -477,6 +532,84 @@ class QAGate:
             "details": {
                 "similarity": similarity,
                 "min_similarity": min_similarity,
+            },
+        }
+
+    async def _check_media_format(self, asset: Asset, thresholds: dict) -> dict:
+        """使用 ffprobe 检查媒体格式硬指标（分辨率、时长、帧率、音轨）"""
+        ffprobe = _get_ffprobe_path()
+        if not ffprobe:
+            return {
+                "check": "media_format",
+                "passed": False,
+                "score": 0,
+                "message": "ffprobe not available, cannot perform media QA",
+                "details": {"ffprobe_available": False},
+            }
+
+        probe = _probe_media(asset.uri)
+        if probe is None:
+            return {
+                "check": "media_format",
+                "passed": False,
+                "score": 0,
+                "message": f"Failed to probe media: {asset.uri}",
+                "details": {"uri": asset.uri},
+            }
+
+        issues = []
+        format_info = probe.get("format", {})
+        streams = probe.get("streams", [])
+
+        # 时长检查
+        duration = float(format_info.get("duration", 0))
+        min_duration = thresholds.get("min_duration", 0.5)
+        if duration < min_duration:
+            issues.append(f"Duration {duration:.2f}s < min {min_duration}s")
+
+        # 视频流检查
+        video_streams = [s for s in streams if s.get("codec_type") == "video"]
+        if video_streams:
+            vs = video_streams[0]
+            width = int(vs.get("width", 0))
+            height = int(vs.get("height", 0))
+            fps_raw = vs.get("r_frame_rate", "0/1")
+            try:
+                fps = float(fps_raw.split("/")[0]) / float(fps_raw.split("/")[1]) if "/" in fps_raw else float(fps_raw)
+            except (ValueError, ZeroDivisionError):
+                fps = 0.0
+
+            min_width = thresholds.get("min_width", 0)
+            min_height = thresholds.get("min_height", 0)
+            min_fps = thresholds.get("min_fps", 0)
+
+            if min_width and width < min_width:
+                issues.append(f"Width {width} < min {min_width}")
+            if min_height and height < min_height:
+                issues.append(f"Height {height} < min {min_height}")
+            if min_fps and fps < min_fps:
+                issues.append(f"FPS {fps:.1f} < min {min_fps}")
+
+        # 音频流检查
+        audio_streams = [s for s in streams if s.get("codec_type") == "audio"]
+        require_audio = thresholds.get("require_audio", False)
+        if require_audio and not audio_streams:
+            issues.append("No audio stream found")
+
+        passed = len(issues) == 0
+        score = 100 if passed else 0
+
+        return {
+            "check": "media_format",
+            "passed": passed,
+            "score": score,
+            "message": "Media format OK" if passed else f"Media format issues: {'; '.join(issues)}",
+            "details": {
+                "duration": duration,
+                "video_streams": len(video_streams),
+                "audio_streams": len(audio_streams),
+                "issues": issues,
+                "ffprobe_available": True,
             },
         }
 

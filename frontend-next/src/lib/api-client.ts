@@ -187,9 +187,22 @@ export interface Scene {
   status: string;
   locked_version_id?: string;
   character_ids?: string[];
+  location_id?: string;
+  shot_stage?: string;
   created_at: string;
   updated_at: string;
   latest_version?: SceneVersion;
+}
+
+export interface Location {
+  id: string;
+  project_id: string;
+  name: string;
+  description?: string;
+  visual_style?: string;
+  reference_asset_id?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SceneVersionSummary {
@@ -555,6 +568,23 @@ export interface Character {
   episode_ids: string[];
   created_at: string;
   updated_at: string;
+}
+
+// ── Still Candidate types ────────────────────────────────────
+
+export interface StillCandidate {
+  id: string;
+  scene_id: string;
+  version: number;
+  image_path: string;
+  thumbnail_path?: string;
+  prompt_used?: string;
+  seed?: number;
+  status: 'pending' | 'approved' | 'rejected';
+  review_note?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  created_at: string;
 }
 
 // ── Delivery Package types ─────────────────────────────────────
@@ -1171,6 +1201,28 @@ class ApiClient {
 
   async getPublishJob(jobId: string): Promise<PublishJob> {
     return this.get<PublishJob>(`publish-jobs/${jobId}`);
+  }
+
+  // ── Still Candidate API ─────────────────────────────────────
+
+  async listStillCandidates(sceneId: string): Promise<StillCandidate[]> {
+    return this.get<StillCandidate[]>(`scenes/${sceneId}/still-candidates`);
+  }
+
+  async getStillCandidate(candidateId: string): Promise<StillCandidate> {
+    return this.get<StillCandidate>(`still-candidates/${candidateId}`);
+  }
+
+  async updateStillCandidate(candidateId: string, data: { status: string; review_note?: string }): Promise<StillCandidate> {
+    return this.put<StillCandidate>(`still-candidates/${candidateId}`, data);
+  }
+
+  async lockStill(sceneId: string, candidateId: string): Promise<{ locked_still_id: string }> {
+    return this.post<{ locked_still_id: string }>(`scenes/${sceneId}/lock-still`, { candidate_id: candidateId });
+  }
+
+  async getLockedStill(sceneId: string): Promise<StillCandidate> {
+    return this.get<StillCandidate>(`scenes/${sceneId}/locked-still`);
   }
 }
 

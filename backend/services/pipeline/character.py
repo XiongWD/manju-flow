@@ -26,6 +26,8 @@ from database.models import (
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.storage.service import get_storage_service
+
 from .base import PipelineClient, PipelineError
 from .config import get_provider_config
 
@@ -265,13 +267,19 @@ class CharacterGenerator(PipelineClient):
         if last_similarity < 0.72:
             # 重新获取最后一次的结果（简化：这里应该缓存最后一次生成的图片）
             # 为了简化，这里创建一个 placeholder 资产
+            # placeholder: 无实际图片数据
+            storage_svc = get_storage_service()
+            save_result = await storage_svc.save_bytes(
+                b"", f"{character.id}_review.png",
+                mime_type="image/png", prefix="characters",
+            )
             asset = Asset(
                 id=hashlib.sha256(f"char_{character.id}_review".encode()).hexdigest()[:32],
                 project_id=character.project_id,
                 type="character_ref",
-                uri=f"file://storage/characters/{character.id}_review.png",
+                uri=save_result["uri"],
                 mime_type="image/png",
-                file_size=0,
+                file_size=save_result["size"],
                 metadata_json={
                     "provider": "comfyui",
                     "character_id": character.id,
@@ -506,21 +514,22 @@ class CharacterGenerator(PipelineClient):
         Returns:
             Asset: 创建的资产对象
         """
-        # 生成文件名和存储路径
+        # 保存图片
         storage_filename = f"character_{character.id[:8]}_{image_filename}"
-        storage_path = f"characters/{storage_filename}"
-
-        # TODO: 保存到 MinIO/local storage
-        image_uri = f"file://{storage_path}"
+        storage_svc = get_storage_service()
+        save_result = await storage_svc.save_bytes(
+            image_data, storage_filename,
+            mime_type="image/png", prefix="characters",
+        )
 
         # 创建 Asset
         asset = Asset(
             id=hashlib.sha256(storage_filename.encode()).hexdigest()[:32],
             project_id=character.project_id,
             type="character_ref",
-            uri=image_uri,
+            uri=save_result["uri"],
             mime_type="image/png",
-            file_size=len(image_data),
+            file_size=save_result["size"],
             metadata_json={
                 "provider": "comfyui",
                 "character_id": character.id,
@@ -528,6 +537,7 @@ class CharacterGenerator(PipelineClient):
                 "similarity": similarity,
                 "ip_weight": ip_weight,
                 "status": "generated",
+                "checksum": save_result["checksum"],
             },
         )
         db.add(asset)

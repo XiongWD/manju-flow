@@ -75,6 +75,8 @@ def _scene_to_read(scene: Scene, character_ids: list[str]) -> dict:
         "status": scene.status,
         "locked_version_id": scene.locked_version_id,
         "character_ids": character_ids,
+        "location_id": scene.location_id,
+        "shot_stage": scene.shot_stage,
         "created_at": scene.created_at,
         "updated_at": scene.updated_at,
     }
@@ -85,7 +87,7 @@ async def list_scenes(
     episode_id: str = Query(None, description="剧集 ID"),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取场景列表"""
+    """获取镜头列表"""
     q = select(Scene)
     if episode_id:
         q = q.where(Scene.episode_id == episode_id)
@@ -101,7 +103,7 @@ async def list_scenes(
 
 @router.post("/", response_model=SceneRead, status_code=status.HTTP_201_CREATED)
 async def create_scene(body: SceneCreate, db: AsyncSession = Depends(get_db)):
-    """创建场景"""
+    """创建镜头"""
     scene = Scene(**body.model_dump())
     db.add(scene)
     await db.flush()
@@ -111,7 +113,7 @@ async def create_scene(body: SceneCreate, db: AsyncSession = Depends(get_db)):
 
 @router.get("/by-character/{character_id}", response_model=list[SceneRead])
 async def list_scenes_by_character(character_id: str, db: AsyncSession = Depends(get_db)):
-    """按角色获取关联场景列表"""
+    """按角色获取关联镜头列表"""
     result = await db.execute(
         select(Scene)
         .join(SceneCharacter, SceneCharacter.scene_id == Scene.id)
@@ -128,7 +130,7 @@ async def list_scenes_by_character(character_id: str, db: AsyncSession = Depends
 
 @router.get("/{scene_id}", response_model=SceneWithVersionsRead)
 async def get_scene(scene_id: str, db: AsyncSession = Depends(get_db)):
-    """获取单个场景详情，含最新版本"""
+    """获取单个镜头详情，含最新版本"""
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -154,6 +156,8 @@ async def get_scene(scene_id: str, db: AsyncSession = Depends(get_db)):
         "status": scene.status,
         "locked_version_id": scene.locked_version_id,
         "character_ids": cids,
+        "location_id": scene.location_id,
+        "shot_stage": scene.shot_stage,
         "created_at": scene.created_at,
         "updated_at": scene.updated_at,
         "latest_version": latest_sv,
@@ -166,7 +170,7 @@ async def update_scene(
     body: SceneUpdate,
     db: AsyncSession = Depends(get_db)
 ):
-    """更新场景"""
+    """更新镜头"""
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -182,7 +186,7 @@ async def update_scene(
 
 @router.delete("/{scene_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_scene(scene_id: str, db: AsyncSession = Depends(get_db)):
-    """删除场景"""
+    """删除镜头"""
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -192,7 +196,7 @@ async def delete_scene(scene_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/{scene_id}/versions", response_model=list[SceneVersionRead])
 async def list_scene_versions(scene_id: str, db: AsyncSession = Depends(get_db)):
-    """获取场景版本列表"""
+    """获取镜头版本列表"""
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -210,7 +214,7 @@ async def retry_scene_endpoint(
     episode_id: str = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """重跑场景：创建新 job + 新 scene_version，保留历史"""
+    """重跑镜头：创建新 job + 新 scene_version，保留历史"""
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -232,7 +236,7 @@ async def get_scene_version_tree(
     scene_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """获取场景版本树（含 fallback 记录）
+    """获取镜头版本树（含 fallback 记录）
     
     039b：提供版本链可视化所需的数据。
     返回版本列表（按 version_no 升序），每个版本包含关联的 fallback_records。
@@ -255,7 +259,7 @@ async def get_scene_fallback_history(
     scene_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """获取场景的 fallback 历史（从所有 job_steps 提取）
+    """获取镜头的 fallback 历史（从所有 job_steps 提取）
     
     039b：提供 fallback 历史可视化所需的数据。
     返回所有 fallback 记录（按时间降序）。
@@ -280,7 +284,7 @@ async def reorder_scenes(
     body: SceneReorderRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """批量重排序场景 scene_no
+    """批量重排序镜头 scene_no
 
     按传入的 scene_ids 列表顺序，依次设置 scene_no = 1, 2, 3 ...
     """
@@ -302,7 +306,7 @@ async def batch_delete_scenes(
     body: SceneBatchDeleteRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """批量删除场景"""
+    """批量删除镜头"""
     deleted: list[str] = []
     not_found: list[str] = []
     for scene_id in body.scene_ids:
@@ -321,7 +325,7 @@ async def batch_update_scene_status(
     body: SceneBatchUpdateStatusRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """批量修改场景状态"""
+    """批量修改镜头状态"""
     results = []
     for scene_id in body.scene_ids:
         scene = await db.get(Scene, scene_id)
@@ -340,7 +344,7 @@ async def batch_update_scene_duration(
     body: SceneBatchUpdateDurationRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """批量调整场景时长
+    """批量调整镜头时长
 
     支持三种模式：
     - set: 将所有选中场景的时长设为固定值
@@ -488,7 +492,7 @@ async def get_scene_subtitle(
     version_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """获取场景版本的字幕数据（042b）"""
+    """获取镜头版本的字幕数据（042b）"""
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -516,7 +520,7 @@ async def update_scene_subtitle(
     body: SubtitleEditRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """更新场景版本的字幕数据（042b）
+    """更新镜头版本的字幕数据（042b）
 
     整体替换 params.subtitle。按 index 递增验证。
     """
@@ -555,7 +559,7 @@ async def get_scene_audio_mix(
     version_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """获取场景版本的音频混音参数（042b）"""
+    """获取镜头版本的音频混音参数（042b）"""
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -585,7 +589,7 @@ async def update_scene_audio_mix(
     body: AudioMixEditRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """更新场景版本的音频混音参数（042b）
+    """更新镜头版本的音频混音参数（042b）
 
     合并更新 params.audio_mix，只覆盖请求中非 None 的字段。
     """

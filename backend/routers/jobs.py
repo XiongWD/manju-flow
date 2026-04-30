@@ -8,11 +8,15 @@
 - 最新进度 GET /{job_id}/latest-progress
 """
 
+import asyncio
+import uuid
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import get_db
+from database.connection import async_session_factory, get_db
 from database.models import Job, JobStep, Scene
 from services.pipeline.orchestrator import (
     cancel_job,
@@ -20,8 +24,9 @@ from services.pipeline.orchestrator import (
     get_job_latest_progress,
     get_job_progress,
     retry_scene,
-    start_mock_scene_job,
+    start_scene_job,
 )
+from services.pipeline.runner import submit_scene_job_bg
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -78,15 +83,15 @@ async def get_job(job_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/{job_id}/progress")
 async def get_job_progress_timeline(job_id: str):
-    """获取 Job 进度时间线（为 WS/轮询预留的统一结构）"""
-    events = get_job_progress(job_id)
+    """获取 Job 进度时间线（DB 优先，内存 fallback）"""
+    events = await get_job_progress(job_id)
     return {"data": events}
 
 
 @router.get("/{job_id}/latest-progress")
 async def get_job_latest(job_id: str):
-    """获取 Job 最新进度事件"""
-    progress = get_job_latest_progress(job_id)
+    """获取 Job 最新进度事件（DB 优先，内存 fallback）"""
+    progress = await get_job_latest_progress(job_id)
     if not progress:
         raise HTTPException(404, "No progress data")
     return {"data": progress}
@@ -131,10 +136,68 @@ async def create_mock_scene_job(
     project_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """启动 mock 场景生产任务"""
+    """启动 mock 场景生产任务（后台执行，不阻塞请求）"""
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(404, "Scene not found")
 
-    job = await start_mock_scene_job(db, scene_id, project_id)
-    return {"data": {"job_id": job.id, "status": job.status}}
+    # 创建占位 Job 记录，立即返回
+    job = Job(
+        id=uuid.uuid4().hex,
+        project_id=project_id,
+        job_type="scene_production",
+        target_type="scene",
+        target_id=scene_id,
+        worker_type="mock",
+        status="queued",
+        metadata_json={"scene_id": scene_id, "mode": "mock"},
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    # 后台执行完整 pipeline（自带独立 db session）
+    asyncio.create_task(submit_scene_job_bg(scene_id, project_id))
+
+    return {"data": {"job_id": job.id, "status": job.status, "message": "任务已提交到后台"}}
+
+
+@router.post("/scene-job")
+async def create_scene_job(
+    scene_id: str = Query(...),
+    project_id: str = Query(...),
+    episode_id: Optional[str] = Query(None),
+    parent_version_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """创建并后台执行场景生产任务（不阻塞请求）"""
+    scene = await db.get(Scene, scene_id)
+    if not scene:
+        raise HTTPException(404, "Scene not found")
+
+    # 先创建 Job 记录（轻量），立即返回
+    job = Job(
+        id=uuid.uuid4().hex,
+        project_id=project_id,
+        job_type="scene_production",
+        target_type="scene",
+        target_id=scene_id,
+        worker_type="real",
+        status="queued",
+        metadata_json={"scene_id": scene_id, "mode": "auto"},
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    # 后台执行完整 pipeline（自带独立 db session）
+    asyncio.create_task(submit_scene_job_bg(
+        scene_id=scene_id,
+        project_id=project_id,
+        episode_id=episode_id,
+        parent_version_id=parent_version_id,
+    ))
+
+    return {"data": {"job_id": job.id, "status": job.status, "message": "任务已提交到后台"}}
+
+
