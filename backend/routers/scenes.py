@@ -1,12 +1,17 @@
+
+logger = logging.getLogger(__name__)
 """镜头/场景路由 — 完整 CRUD 实现"""
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_db
-from database.models import Scene, SceneVersion, SceneCharacter, Character
+from database.models import Scene, SceneVersion, SceneCharacter, Character, Episode
 from schemas.scene import (
+
     SceneCreate,
     SceneUpdate,
     SceneRead,
@@ -32,6 +37,7 @@ from schemas.scene import (
 )
 from services.pipeline.orchestrator import retry_scene
 from services.pipeline.version_lock import VersionLockService
+from services.broadcast import broadcast
 
 router = APIRouter(prefix="/api/scenes", tags=["scenes"])
 
@@ -82,23 +88,32 @@ def _scene_to_read(scene: Scene, character_ids: list[str]) -> dict:
     }
 
 
-@router.get("/", response_model=list[SceneRead])
+@router.get("/")
 async def list_scenes(
     episode_id: str = Query(None, description="剧集 ID"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
+    search: str = Query("", description="搜索关键词"),
     db: AsyncSession = Depends(get_db),
 ):
     """获取镜头列表"""
+    limit = min(limit, 200)
     q = select(Scene)
     if episode_id:
         q = q.where(Scene.episode_id == episode_id)
-    q = q.order_by(Scene.scene_no)
+    if search:
+        q = q.filter(Scene.title.ilike(f"%{search}%"))
+    # count
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar() or 0
+    q = q.order_by(Scene.scene_no).offset(skip).limit(limit)
     result = await db.execute(q)
     scenes = result.scalars().all()
     out = []
     for s in scenes:
         cids = await _load_character_ids(db, s.id)
         out.append(SceneRead(**_scene_to_read(s, cids)))
-    return out
+    return {"items": out, "total": total, "skip": skip, "limit": limit}
 
 
 @router.post("/", response_model=SceneRead, status_code=status.HTTP_201_CREATED)
@@ -108,12 +123,14 @@ async def create_scene(body: SceneCreate, db: AsyncSession = Depends(get_db)):
     db.add(scene)
     await db.flush()
     await db.refresh(scene)
+    await broadcast.broadcast(f"project:{scene.episode_id}", {"type": "created", "entity": "scene", "id": scene.id})
     return scene
 
 
 @router.get("/by-character/{character_id}", response_model=list[SceneRead])
 async def list_scenes_by_character(character_id: str, db: AsyncSession = Depends(get_db)):
     """按角色获取关联镜头列表"""
+    # 分页豁免：列表固定小
     result = await db.execute(
         select(Scene)
         .join(SceneCharacter, SceneCharacter.scene_id == Scene.id)
@@ -171,7 +188,8 @@ async def update_scene(
     db: AsyncSession = Depends(get_db)
 ):
     """更新镜头"""
-    scene = await db.get(Scene, scene_id)
+    result = await db.execute(select(Scene).where(Scene.id == scene_id))
+    scene = result.scalar_one_or_none()
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
     character_ids = body.character_ids
@@ -181,22 +199,27 @@ async def update_scene(
     await db.refresh(scene)
     await _sync_character_ids(db, scene_id, character_ids)
     await db.flush()
+    await broadcast.broadcast(f"project:{scene.episode_id}", {"type": "updated", "entity": "scene", "id": scene_id})
     return SceneRead(**_scene_to_read(scene, await _load_character_ids(db, scene_id)))
 
 
 @router.delete("/{scene_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_scene(scene_id: str, db: AsyncSession = Depends(get_db)):
     """删除镜头"""
-    scene = await db.get(Scene, scene_id)
+    result = await db.execute(select(Scene).where(Scene.id == scene_id))
+    scene = result.scalar_one_or_none()
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
     await db.delete(scene)
     await db.flush()
+    await broadcast.broadcast(f"project:{scene.episode_id}", {"type": "deleted", "entity": "scene", "id": scene_id})
 
 
 @router.get("/{scene_id}/versions", response_model=list[SceneVersionRead])
 async def list_scene_versions(scene_id: str, db: AsyncSession = Depends(get_db)):
-    """获取镜头版本列表"""
+    """获取镜头版本列表
+    # 分页豁免：列表固定小
+    """
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")

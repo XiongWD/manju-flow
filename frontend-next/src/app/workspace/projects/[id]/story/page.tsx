@@ -114,25 +114,25 @@ export default function StoryCharactersPage() {
 
   const fetchEpisodes = useCallback(async () => {
     const eps = await apiClient.listEpisodes({ project_id: projectId })
-    setEpisodes(eps)
-    if (eps.length > 0) setSelectedEpId((prev) => prev ?? eps[0].id)
+    setEpisodes(eps.items)
+    if (eps.items.length > 0) setSelectedEpId((prev) => prev ?? eps.items[0].id)
   }, [projectId])
 
   const fetchBibles = useCallback(async () => {
     const list = await apiClient.listStoryBibles(projectId)
-    setBibles(list)
+    setBibles(list.items)
   }, [projectId])
 
   const fetchCharacters = useCallback(async () => {
     const list = await apiClient.listCharacters(projectId)
-    setCharacters(list)
+    setCharacters(list.items)
   }, [projectId])
 
   const fetchScenes = useCallback(async () => {
     const allScenes: Map<string, { id: string; scene_no: number; title?: string; character_ids?: string[] }>[] = []
     for (const ep of episodes) {
       const epScenes = await apiClient.listScenes({ episode_id: ep.id })
-      allScenes.push(new Map(epScenes.map(s => [s.id, s])))
+      allScenes.push(new Map(epScenes.items.map(s => [s.id, s])))
     }
     setScenes(allScenes)
   }, [episodes])
@@ -279,7 +279,7 @@ export default function StoryCharactersPage() {
     try {
       const assets = await apiClient.listAssets({ project_id: projectId, limit: 100 })
       // Filter to image-like assets for avatar selection
-      const imageAssets = assets.filter(a =>
+      const imageAssets = assets.items.filter(a =>
         a.type === 'character_ref' || a.type === 'image' ||
         a.mime_type?.startsWith('image/')
       )
@@ -334,7 +334,7 @@ export default function StoryCharactersPage() {
       setScenes(prev => {
         const next = [...prev]
         const epIdx = episodes.findIndex(e => e.id === epId)
-        if (epIdx >= 0) next[epIdx] = new Map(epScenes.map(s => [s.id, s]))
+        if (epIdx >= 0) next[epIdx] = new Map(epScenes.items.map(s => [s.id, s]))
         return next
       })
       showToast("场景角色已更新")

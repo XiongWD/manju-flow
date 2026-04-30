@@ -1,3 +1,5 @@
+
+logger = logging.getLogger(__name__)
 """知识沉淀路由 — 041b3
 
 API 端点：
@@ -6,14 +8,18 @@ API 端点：
 - GET    /api/knowledge/items/{item_id}       获取单个知识条目
 - PATCH  /api/knowledge/items/{item_id}       更新知识条目
 """
+import logging
+
 
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import async_session_factory
 from schemas.knowledge import (
+
     KnowledgeItemCreate,
     KnowledgeItemRead,
     KnowledgeItemSummary,
@@ -59,18 +65,21 @@ async def create_knowledge_item(
         raise HTTPException(status_code=500, detail=f"Failed to create knowledge item: {e}")
 
 
-@router.get("/items", response_model=list[KnowledgeItemSummary])
+@router.get("/items")
 async def list_knowledge_items(
     project_id: Optional[str] = Query(None, description="按项目筛选"),
     episode_id: Optional[str] = Query(None, description="按剧集筛选"),
     publish_job_id: Optional[str] = Query(None, description="按发布任务筛选"),
     category: Optional[str] = Query(None, description="按分类筛选"),
     is_active: Optional[bool] = Query(None, description="按生效状态筛选"),
-    limit: int = Query(50, ge=1, le=200),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(_get_db),
 ):
     """列出知识条目"""
+    limit = min(limit, 200)
     svc = KnowledgeService(db)
+    items = []
     if publish_job_id:
         items = await svc.list_by_publish_job(publish_job_id, limit=limit)
     elif episode_id:
@@ -80,8 +89,8 @@ async def list_knowledge_items(
             project_id, category=category, is_active=is_active, limit=limit
         )
     else:
-        return []
-    return items
+        return {"items": [], "total": 0, "skip": skip, "limit": limit}
+    return {"items": items, "total": len(items), "skip": skip, "limit": limit}
 
 
 @router.get("/items/{item_id}", response_model=KnowledgeItemRead)

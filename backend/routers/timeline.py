@@ -1,4 +1,6 @@
 """Timeline 导出路由"""
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
@@ -8,6 +10,8 @@ from database.connection import async_session_factory
 from schemas.timeline import TimelineExportOptions, TimelineExportResponse, TimelineFormat
 from services.timeline import TimelineService
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/episodes/{episode_id}", tags=["timeline"])
 
 _service = TimelineService()

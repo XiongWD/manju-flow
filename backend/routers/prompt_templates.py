@@ -1,12 +1,17 @@
+
+logger = logging.getLogger(__name__)
 """PromptTemplate 路由 — Prompt 模板 CRUD + Build"""
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_db
 from database.models import PromptTemplate, Project
 from schemas.prompt_template import (
+
     PromptTemplateCreate,
     PromptTemplateUpdate,
     PromptTemplateRead,
@@ -21,21 +26,24 @@ _builder = PromptBuilder()
 
 # ─── PromptTemplate CRUD ────────────────────────────────────────────────────
 
-@router.get("/projects/{project_id}/prompt-templates", response_model=list[PromptTemplateRead])
+@router.get("/projects/{project_id}/prompt-templates")
 async def list_prompt_templates(
     project_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(get_db),
 ):
     """获取项目下的模板列表"""
+    limit = min(limit, 200)
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    result = await db.execute(
-        select(PromptTemplate)
-        .where(PromptTemplate.project_id == project_id)
-        .order_by(PromptTemplate.created_at.desc())
-    )
-    return result.scalars().all()
+    q = select(PromptTemplate).where(PromptTemplate.project_id == project_id)
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar() or 0
+    q = q.order_by(PromptTemplate.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(q)
+    return {"items": result.scalars().all(), "total": total, "skip": skip, "limit": limit}
 
 
 @router.post("/projects/{project_id}/prompt-templates", response_model=PromptTemplateRead, status_code=status.HTTP_201_CREATED)

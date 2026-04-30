@@ -1,4 +1,6 @@
 """Workspace 聚合路由 — 首屏聚合数据（面向 frontend-next）"""
+import logging
+
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func
@@ -8,6 +10,8 @@ from database.connection import get_db
 from database.models import Project, Episode, Scene, Asset
 from schemas.workspace import WorkspaceOverview, ProjectSummary, EpisodeSummary, SceneSummary, ProjectWorkspace
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/workspace", tags=["workspace"])
 
 

@@ -28,7 +28,7 @@ export const dynamic = 'force-dynamic';
 
 async function ProjectDetail({ projectId }: { projectId: string }) {
   const project = await apiClient.getProject(projectId);
-  const episodes = await apiClient.listEpisodes({ project_id: projectId });
+  const episodes = (await apiClient.listEpisodes({ project_id: projectId })).items;
 
   return (
     <div className="space-y-6">

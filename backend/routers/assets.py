@@ -1,7 +1,9 @@
 """资产路由 — 完整 CRUD 实现"""
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_db
@@ -9,24 +11,34 @@ from database.models import Asset, AssetLink
 from schemas.asset import AssetCreate, AssetUpdate, AssetRead, AssetWithLinksRead, AssetLinkCreate, AssetLinkRead
 from services.storage import get_storage_client
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/assets", tags=["assets"])
 
 
-@router.get("/", response_model=list[AssetRead])
+@router.get("/")
 async def list_assets(
     project_id: str = Query(None, description="项目 ID"),
     owner_type: str = Query(None, description="归属类型"),
     owner_id: str = Query(None, description="归属对象 ID"),
     asset_type: str = Query(None, description="资产类型"),
-    limit: int = Query(100, le=500, description="返回数量限制"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
+    search: str = Query("", description="搜索关键词"),
     db: AsyncSession = Depends(get_db),
 ):
     """获取资产列表，支持按 owner_type + owner_id 过滤"""
-    q = select(Asset).order_by(Asset.created_at.desc()).limit(limit)
+    limit = min(limit, 200)
+    q = select(Asset)
     if project_id:
         q = q.where(Asset.project_id == project_id)
     if asset_type:
         q = q.where(Asset.type == asset_type)
+    if search:
+        q = q.filter(or_(
+            Asset.type.ilike(f"%{search}%"),
+            Asset.uri.ilike(f"%{search}%"),
+        ))
 
     # 如果指定了 owner，需要 join asset_links
     if owner_type and owner_id:
@@ -35,9 +47,14 @@ async def list_assets(
             .where(AssetLink.owner_type == owner_type, AssetLink.owner_id == owner_id)
         )
 
+    # count
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar() or 0
+
+    q = q.order_by(Asset.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(q)
-    assets = result.scalars().all()
-    return assets
+    items = result.scalars().all()
+    return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
 @router.post("/", response_model=AssetRead, status_code=status.HTTP_201_CREATED)
@@ -58,6 +75,7 @@ async def get_asset(asset_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Asset not found")
 
     # 获取关联的 links
+    # 分页豁免：列表固定小
     links_q = select(AssetLink).where(AssetLink.asset_id == asset_id)
     links_result = await db.execute(links_q)
     links = links_result.scalars().all()

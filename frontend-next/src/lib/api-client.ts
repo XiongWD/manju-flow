@@ -2,6 +2,19 @@
 // ArcLine API Client — type definitions & fetch skeleton
 // ============================================================
 
+// ── Unified error class ──────────────────────────────────────
+
+export class ApiErrorClass extends Error {
+  status: number;
+  detail: string;
+  constructor(status: number, detail: string) {
+    super(`API Error ${status}: ${detail}`);
+    this.status = status;
+    this.detail = detail;
+    this.name = "ApiErrorClass";
+  }
+}
+
 // Use absolute URL for server-side rendering
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ??
@@ -10,11 +23,10 @@ const API_BASE_URL =
 // ── Base types ──────────────────────────────────────────────
 
 export interface PaginatedResponse<T> {
-  data: T[];
+  items: T[];
   total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
+  skip: number;
+  limit: number;
 }
 
 export interface ApiError {
@@ -631,31 +643,210 @@ export interface PublishJobCreate {
 
 // ── API Client ──────────────────────────────────────────────
 
+// ── Auth types ──────────────────────────────────────────────
+
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+}
+
+export interface UserRead {
+  id: string;
+  email: string;
+  display_name?: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  last_login_at?: string;
+}
+
+// ── API Client ──────────────────────────────────────────────
+
 class ApiClient {
   private baseUrl: string;
+  private accessToken: string | null = null;
+  private refreshToken: string | null = null;
+  private cache = new Map<string, { data: any; timestamp: number }>();
+  private defaultCacheTtl = 30_000; // 30s
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
+    // Restore tokens from localStorage (browser only)
+    if (typeof window !== "undefined") {
+      this.accessToken = localStorage.getItem("access_token");
+      this.refreshToken = localStorage.getItem("refresh_token");
+    }
   }
+
+  // ── Auth methods ───────────────────────────────────────────
+
+  async login(email: string, password: string): Promise<TokenResponse> {
+    const res = await this.request<TokenResponse>("auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+    this.setTokens(res.access_token, res.refresh_token);
+    return res;
+  }
+
+  async register(email: string, password: string, displayName?: string): Promise<UserRead> {
+    const res = await this.request<UserRead>("auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        password,
+        display_name: displayName,
+      }),
+    });
+    return res;
+  }
+
+  async getMe(): Promise<UserRead> {
+    return this.request<UserRead>("auth/me");
+  }
+
+  async refreshAccessToken(): Promise<TokenResponse> {
+    if (!this.refreshToken) {
+      throw { code: "NO_REFRESH_TOKEN", message: "No refresh token available" } as ApiError;
+    }
+    // The backend /api/auth/refresh takes a raw string query param
+    const res = await fetch(`${this.baseUrl.replace(/\/$/, '')}/auth/refresh?refresh_token=${encodeURIComponent(this.refreshToken)}`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      this.clearTokens();
+      const error: ApiError = await res.json().catch(() => ({
+        code: "REFRESH_FAILED",
+        message: `Token refresh failed: ${res.status}`,
+      }));
+      throw error;
+    }
+    const data: TokenResponse = await res.json();
+    this.setTokens(data.access_token, data.refresh_token);
+    return data;
+  }
+
+  logout(): void {
+    this.clearTokens();
+  }
+
+  isAuthenticated(): boolean {
+    return !!this.accessToken;
+  }
+
+  private setTokens(access: string, refresh: string): void {
+    this.accessToken = access;
+    this.refreshToken = refresh;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("access_token", access);
+      localStorage.setItem("refresh_token", refresh);
+    }
+  }
+
+  private clearTokens(): void {
+    this.accessToken = null;
+    this.refreshToken = null;
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+    }
+  }
+
+  // ── Cache helpers ────────────────────────────────────────
+
+  private getCached<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > this.defaultCacheTtl) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.data;
+  }
+
+  private setCache(key: string, data: any): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  clearCache(prefix?: string): void {
+    if (prefix) {
+      for (const key of this.cache.keys()) {
+        if (key.startsWith(prefix)) this.cache.delete(key);
+      }
+    } else {
+      this.cache.clear();
+    }
+  }
+
+  // ── Core request with auth + auto-refresh ──────────────────
 
   private async request<T>(
     path: string,
     options: RequestInit = {}
   ): Promise<T> {
+    const method = (options.method ?? 'GET').toUpperCase();
+    const cacheKey = `${method}:${path}`;
+
+    // Return cached result for GET requests
+    if (method === 'GET') {
+      const cached = this.getCached<T>(cacheKey);
+      if (cached !== null) return cached;
+    }
+
+    // Invalidate related cache on mutations
+    if (method !== 'GET' && method !== 'HEAD') {
+      const prefix = `GET:${path.split('?')[0].replace(/\/[^/]*$/, '')}`;
+      this.clearCache(prefix);
+    }
+
     const url = `${this.baseUrl.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...((options.headers as Record<string, string>) ?? {}),
     };
 
+    // Attach Bearer token if available
+    if (this.accessToken) {
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
+    }
+
     const response = await fetch(url, { ...options, headers, redirect: "follow" });
 
+    // Auto-refresh on 401 (once)
+    if (response.status === 401 && this.refreshToken) {
+      try {
+        const newTokens = await this.refreshAccessToken();
+        // Retry with new token
+        headers["Authorization"] = `Bearer ${newTokens.access_token}`;
+        const retryResponse = await fetch(url, { ...options, headers, redirect: "follow" });
+        if (!retryResponse.ok) {
+          const error: ApiError = await retryResponse.json().catch(() => ({
+            code: "UNKNOWN",
+            message: `Request failed: ${retryResponse.status}`,
+          }));
+          throw error;
+        }
+        if (retryResponse.status === 204) return undefined as T;
+        const text = await retryResponse.text();
+        if (!text) return undefined as T;
+        const result = JSON.parse(text) as T;
+        if (method === 'GET') this.setCache(cacheKey, result);
+        return result;
+      } catch {
+        // Refresh failed — clear tokens and throw original 401
+        const error: ApiError = await response.json().catch(() => ({
+          code: "AUTH_REQUIRED",
+          message: `Request failed: 401 and token refresh failed`,
+        }));
+        throw error;
+      }
+    }
+
     if (!response.ok) {
-      const error: ApiError = await response.json().catch(() => ({
-        code: "UNKNOWN",
-        message: `Request failed: ${response.status}`,
-      }));
-      throw error;
+      const body = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new ApiErrorClass(response.status, body.detail || response.statusText);
     }
 
     if (response.status === 204) {
@@ -667,7 +858,9 @@ class ApiClient {
       return undefined as T;
     }
 
-    return JSON.parse(text) as T;
+    const result = JSON.parse(text) as T;
+    if (method === 'GET') this.setCache(cacheKey, result);
+    return result;
   }
 
   async get<T>(path: string): Promise<T> {
@@ -699,15 +892,19 @@ class ApiClient {
     owner_type?: string;
     owner_id?: string;
     asset_type?: string;
+    skip?: number;
     limit?: number;
-  }): Promise<Asset[]> {
+    search?: string;
+  }): Promise<PaginatedResponse<Asset>> {
     const query = new URLSearchParams();
     if (params?.project_id) query.set("project_id", params.project_id);
     if (params?.owner_type) query.set("owner_type", params.owner_type);
     if (params?.owner_id) query.set("owner_id", params.owner_id);
     if (params?.asset_type) query.set("asset_type", params.asset_type);
+    if (params?.skip) query.set("skip", params.skip.toString());
     if (params?.limit) query.set("limit", params.limit.toString());
-    return this.get<Asset[]>(`assets/?${query.toString()}`);
+    if (params?.search) query.set("search", params.search);
+    return this.get<PaginatedResponse<Asset>>(`assets/?${query.toString()}`);
   }
 
   async uploadFile(formData: FormData): Promise<UploadResponse> {
@@ -813,15 +1010,18 @@ class ApiClient {
     project_id?: string;
     target_id?: string;
     status?: string;
+    skip?: number;
     limit?: number;
-  }): Promise<JobDetail[]> {
+    search?: string;
+  }): Promise<PaginatedResponse<JobDetail>> {
     const query = new URLSearchParams();
     if (params?.project_id) query.set("project_id", params.project_id);
     if (params?.target_id) query.set("target_id", params.target_id);
     if (params?.status) query.set("status", params.status);
+    if (params?.skip) query.set("skip", params.skip.toString());
     if (params?.limit) query.set("limit", params.limit.toString());
-    const result = await this.get<{data: JobDetail[]} | JobDetail[]>(`jobs/?${query.toString()}`);
-    return Array.isArray(result) ? result : result.data;
+    if (params?.search) query.set("search", params.search);
+    return this.get<PaginatedResponse<JobDetail>>(`jobs/?${query.toString()}`);
   }
 
   async retryJob(jobId: string): Promise<{
@@ -868,12 +1068,16 @@ class ApiClient {
 
   async listScenes(params?: {
     episode_id?: string;
+    skip?: number;
     limit?: number;
-  }): Promise<Scene[]> {
+    search?: string;
+  }): Promise<PaginatedResponse<Scene>> {
     const query = new URLSearchParams();
     if (params?.episode_id) query.set("episode_id", params.episode_id);
+    if (params?.skip) query.set("skip", params.skip.toString());
     if (params?.limit) query.set("limit", params.limit.toString());
-    return this.get<Scene[]>(`scenes/?${query.toString()}`);
+    if (params?.search) query.set("search", params.search);
+    return this.get<PaginatedResponse<Scene>>(`scenes/?${query.toString()}`);
   }
 
   async getScene(sceneId: string): Promise<Scene> {
@@ -947,15 +1151,16 @@ class ApiClient {
     project_id?: string;
     subject_type?: string;
     subject_id?: string;
+    skip?: number;
     limit?: number;
-  }): Promise<QARun[]> {
+  }): Promise<PaginatedResponse<QARun>> {
     const query = new URLSearchParams();
     if (params?.project_id) query.set("project_id", params.project_id);
     if (params?.subject_type) query.set("subject_type", params.subject_type);
     if (params?.subject_id) query.set("subject_id", params.subject_id);
+    if (params?.skip) query.set("skip", params.skip.toString());
     if (params?.limit) query.set("limit", params.limit.toString());
-    const result = await this.get<{data: QARun[]} | QARun[]>(`qa/runs?${query.toString()}`);
-    return Array.isArray(result) ? result : result.data;
+    return this.get<PaginatedResponse<QARun>>(`qa/runs?${query.toString()}`);
   }
 
   async getQARun(runId: string): Promise<QARunDetail> {
@@ -966,20 +1171,25 @@ class ApiClient {
   async listQAIssues(params?: {
     project_id?: string;
     severity?: string;
+    skip?: number;
     limit?: number;
-  }): Promise<QAIssue[]> {
+  }): Promise<PaginatedResponse<QAIssue>> {
     const query = new URLSearchParams();
     if (params?.project_id) query.set("project_id", params.project_id);
     if (params?.severity) query.set("severity", params.severity);
+    if (params?.skip) query.set("skip", params.skip.toString());
     if (params?.limit) query.set("limit", params.limit.toString());
-    const result = await this.get<{data: QAIssue[]} | QAIssue[]>(`qa/issues?${query.toString()}`);
-    return Array.isArray(result) ? result : result.data;
+    return this.get<PaginatedResponse<QAIssue>>(`qa/issues?${query.toString()}`);
   }
 
   // ── Project API ─────────────────────────────────────────────
 
-  async listProjects(): Promise<Project[]> {
-    return this.get<Project[]>('projects');
+  async listProjects(params?: { skip?: number; limit?: number; search?: string }): Promise<PaginatedResponse<Project>> {
+    const query = new URLSearchParams();
+    if (params?.skip) query.set("skip", params.skip.toString());
+    if (params?.limit) query.set("limit", params.limit.toString());
+    if (params?.search) query.set("search", params.search);
+    return this.get<PaginatedResponse<Project>>(`projects?${query.toString()}`);
   }
 
   async getProject(projectId: string): Promise<Project> {
@@ -1034,12 +1244,16 @@ class ApiClient {
 
   async listEpisodes(params?: {
     project_id?: string;
+    skip?: number;
     limit?: number;
-  }): Promise<Episode[]> {
+    search?: string;
+  }): Promise<PaginatedResponse<Episode>> {
     const query = new URLSearchParams();
     if (params?.project_id) query.set("project_id", params.project_id);
+    if (params?.skip) query.set("skip", params.skip.toString());
     if (params?.limit) query.set("limit", params.limit.toString());
-    return this.get<Episode[]>(`episodes/?${query.toString()}`);
+    if (params?.search) query.set("search", params.search);
+    return this.get<PaginatedResponse<Episode>>(`episodes/?${query.toString()}`);
   }
 
   async createEpisode(data: EpisodeCreateInput): Promise<Episode> {
@@ -1083,6 +1297,11 @@ class ApiClient {
   }
 
   // ── Audio Config API ───────────────────────────────────────────────
+  // NOTE: 后端未实现以下 3 个端点（episodes.py 无对应路由），
+  //       方法保留以避免 TS 编译错误，运行时会 404
+  // getEpisodeAudioConfig  → GET /api/episodes/{id}/audio-config
+  // getEpisodeAudioAssets  → GET /api/episodes/{id}/audio-assets
+  // getEpisodeQAEvidenceAssets → GET /api/episodes/{id}/qa-evidence-assets
 
   async getEpisodeAudioConfig(episodeId: string): Promise<EpisodeAudioConfig> {
     return this.get<EpisodeAudioConfig>(`episodes/${episodeId}/audio-config`);
@@ -1107,9 +1326,11 @@ class ApiClient {
 
   // ── Story Bible API ────────────────────────────────────────
 
-  async listStoryBibles(projectId: string): Promise<StoryBible[]> {
+  async listStoryBibles(projectId: string, params?: { skip?: number; limit?: number }): Promise<PaginatedResponse<StoryBible>> {
     const query = new URLSearchParams({ project_id: projectId });
-    return this.get<StoryBible[]>(`story-bibles/?${query.toString()}`);
+    if (params?.skip) query.set("skip", params.skip.toString());
+    if (params?.limit) query.set("limit", params.limit.toString());
+    return this.get<PaginatedResponse<StoryBible>>(`story-bibles/?${query.toString()}`);
   }
 
   async getStoryBible(storyBibleId: string): Promise<StoryBible> {
@@ -1133,9 +1354,12 @@ class ApiClient {
 
   // ── Character API ──────────────────────────────────────────
 
-  async listCharacters(projectId: string): Promise<Character[]> {
+  async listCharacters(projectId: string, params?: { skip?: number; limit?: number; search?: string }): Promise<PaginatedResponse<Character>> {
     const query = new URLSearchParams({ project_id: projectId });
-    return this.get<Character[]>(`characters/?${query.toString()}`);
+    if (params?.skip) query.set("skip", params.skip.toString());
+    if (params?.limit) query.set("limit", params.limit.toString());
+    if (params?.search) query.set("search", params.search);
+    return this.get<PaginatedResponse<Character>>(`characters/?${query.toString()}`);
   }
 
   async getCharacter(characterId: string): Promise<Character> {
@@ -1165,20 +1389,22 @@ class ApiClient {
 
   async listDeliveryPackages(params?: {
     episode_id?: string;
+    skip?: number;
     limit?: number;
-  }): Promise<DeliveryPackage[]> {
+  }): Promise<PaginatedResponse<DeliveryPackage>> {
     const query = new URLSearchParams();
     if (params?.episode_id) query.set('episode_id', params.episode_id);
+    if (params?.skip) query.set('skip', params.skip.toString());
     if (params?.limit) query.set('limit', params.limit.toString());
-    return this.get<DeliveryPackage[]>(`delivery-packages/?${query.toString()}`);
+    return this.get<PaginatedResponse<DeliveryPackage>>(`publish/delivery-packages/?${query.toString()}`);
   }
 
   async createDeliveryPackage(data: DeliveryPackageCreate): Promise<DeliveryPackage> {
-    return this.post<DeliveryPackage>('delivery-packages/', data);
+    return this.post<DeliveryPackage>('publish/delivery-packages/', data);
   }
 
   async getDeliveryPackage(packageId: string): Promise<DeliveryPackage> {
-    return this.get<DeliveryPackage>(`delivery-packages/${packageId}`);
+    return this.get<DeliveryPackage>(`publish/delivery-packages/${packageId}`);
   }
 
   // ── Publish Job API ────────────────────────────────────────
@@ -1186,21 +1412,23 @@ class ApiClient {
   async listPublishJobs(params?: {
     project_id?: string;
     episode_id?: string;
+    skip?: number;
     limit?: number;
-  }): Promise<PublishJob[]> {
+  }): Promise<PaginatedResponse<PublishJob>> {
     const query = new URLSearchParams();
     if (params?.project_id) query.set('project_id', params.project_id);
     if (params?.episode_id) query.set('episode_id', params.episode_id);
+    if (params?.skip) query.set('skip', params.skip.toString());
     if (params?.limit) query.set('limit', params.limit.toString());
-    return this.get<PublishJob[]>(`publish-jobs/?${query.toString()}`);
+    return this.get<PaginatedResponse<PublishJob>>(`publish/jobs/?${query.toString()}`);
   }
 
   async createPublishJob(data: PublishJobCreate): Promise<PublishJob> {
-    return this.post<PublishJob>('publish-jobs/', data);
+    return this.post<PublishJob>('publish/jobs/', data);
   }
 
   async getPublishJob(jobId: string): Promise<PublishJob> {
-    return this.get<PublishJob>(`publish-jobs/${jobId}`);
+    return this.get<PublishJob>(`publish/jobs/${jobId}`);
   }
 
   // ── Still Candidate API ─────────────────────────────────────

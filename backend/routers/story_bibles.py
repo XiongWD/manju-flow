@@ -1,13 +1,17 @@
 """Story Bible CRUD 路由"""
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from database.models import StoryBible
 from schemas.story_bible import StoryBibleCreate, StoryBibleUpdate, StoryBibleRead
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/story-bibles", tags=["story-bibles"])
 
 
@@ -21,15 +25,21 @@ async def create_story_bible(body: StoryBibleCreate, db: AsyncSession = Depends(
     return obj
 
 
-@router.get("/", response_model=list[StoryBibleRead])
-async def list_story_bibles(project_id: str, db: AsyncSession = Depends(get_db)):
+@router.get("/")
+async def list_story_bibles(
+    project_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
+    db: AsyncSession = Depends(get_db),
+):
     """按项目获取 Story Bible 列表"""
-    result = await db.execute(
-        select(StoryBible)
-        .where(StoryBible.project_id == project_id)
-        .order_by(StoryBible.created_at.desc())
-    )
-    return result.scalars().all()
+    limit = min(limit, 200)
+    q = select(StoryBible).where(StoryBible.project_id == project_id)
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar() or 0
+    q = q.order_by(StoryBible.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(q)
+    return {"items": result.scalars().all(), "total": total, "skip": skip, "limit": limit}
 
 
 @router.get("/{story_bible_id}", response_model=StoryBibleRead)

@@ -8,10 +8,13 @@ API 端点：
 - POST   /api/analytics/insights               从快照提取洞察 → knowledge
 - GET    /api/analytics/cost                   成本汇总（stub）
 """
+import logging
+
 
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import async_session_factory
@@ -24,6 +27,8 @@ from schemas.analytics import (
 )
 from schemas.knowledge import KnowledgeItemRead
 from services.pipeline.analytics import AnalyticsService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -65,24 +70,28 @@ async def record_snapshot(
         raise HTTPException(status_code=500, detail=f"Failed to record snapshot: {e}")
 
 
-@router.get("/snapshots", response_model=list[AnalyticsSnapshotSummary])
+@router.get("/snapshots")
 async def list_snapshots(
     episode_id: Optional[str] = Query(None, description="按剧集筛选"),
     publish_job_id: Optional[str] = Query(None, description="按发布任务筛选"),
     platform: Optional[str] = Query(None, description="按平台筛选"),
-    limit: int = Query(50, ge=1, le=200),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(_get_db),
 ):
     """列出 analytics 快照"""
+    limit = min(limit, 200)
     svc = AnalyticsService(db)
+    snapshots = []
     if publish_job_id:
-        snapshots = await svc.list_by_publish_job(publish_job_id, limit=limit)
+        snapshots = await svc.list_by_publish_job(publish_job_id, skip=skip, limit=limit)
     elif episode_id:
-        snapshots = await svc.list_by_episode(episode_id, platform=platform, limit=limit)
+        snapshots = await svc.list_by_episode(episode_id, platform=platform, skip=skip, limit=limit)
     else:
         # 返回空列表 — 不支持无筛选的全量查询
-        return []
-    return snapshots
+        return {"items": [], "total": 0, "skip": skip, "limit": limit}
+    # Note: total from service is not available, approximate with len
+    return {"items": snapshots, "total": len(snapshots), "skip": skip, "limit": limit}
 
 
 @router.get("/snapshots/{snapshot_id}", response_model=AnalyticsSnapshotRead)

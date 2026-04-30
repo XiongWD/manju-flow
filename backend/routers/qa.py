@@ -1,12 +1,16 @@
 """QA 路由 — 实际实现"""
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_db
 from database.models import QARun, QAIssue
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/qa", tags=["qa"])
 
 
@@ -15,20 +19,26 @@ async def list_qa_runs(
     project_id: str = Query(None),
     subject_type: str = Query(None),
     subject_id: str = Query(None),
-    limit: int = Query(50, le=200),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(get_db),
 ):
     """获取 QA 运行列表"""
-    q = select(QARun).order_by(QARun.created_at.desc()).limit(limit)
+    limit = min(limit, 200)
+    q = select(QARun)
     if project_id:
         q = q.where(QARun.project_id == project_id)
     if subject_type and subject_id:
         q = q.where(QARun.subject_type == subject_type, QARun.subject_id == subject_id)
+    # count
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar() or 0
+    q = q.order_by(QARun.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(q)
     runs = result.scalars().all()
 
     return {
-        "data": [
+        "items": [
             {
                 "id": r.id,
                 "project_id": r.project_id,
@@ -43,7 +53,10 @@ async def list_qa_runs(
                 "finished_at": r.finished_at.isoformat() if r.finished_at else None,
             }
             for r in runs
-        ]
+        ],
+        "total": total,
+        "skip": skip,
+        "limit": limit,
     }
 
 
@@ -90,16 +103,26 @@ async def get_qa_run(run_id: str, db: AsyncSession = Depends(get_db)):
 async def list_qa_issues(
     project_id: str = Query(None),
     severity: str = Query(None),
-    limit: int = Query(50, le=200),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(get_db),
 ):
     """获取 QA 问题列表"""
-    q = select(QAIssue).order_by(QAIssue.created_at.desc()).limit(limit)
+    limit = min(limit, 200)
+    q = select(QAIssue)
+    if project_id:
+        q = q.where(QAIssue.project_id == project_id)
+    if severity:
+        q = q.where(QAIssue.severity == severity)
+    # count
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar() or 0
+    q = q.order_by(QAIssue.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(q)
     issues = result.scalars().all()
 
     return {
-        "data": [
+        "items": [
             {
                 "id": i.id,
                 "qa_run_id": i.qa_run_id,
@@ -111,5 +134,8 @@ async def list_qa_issues(
                 "created_at": i.created_at.isoformat() if i.created_at else None,
             }
             for i in issues
-        ]
+        ],
+        "total": total,
+        "skip": skip,
+        "limit": limit,
     }

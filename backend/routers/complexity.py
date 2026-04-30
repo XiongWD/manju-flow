@@ -1,4 +1,8 @@
+
+logger = logging.getLogger(__name__)
 """镜头复杂度评分路由"""
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -7,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.connection import get_db
 from database.models import Scene, ComplexityProfile
 from schemas.complexity import (
+
     ComplexityEpisodeSummary,
     ComplexityProfileResponse,
     ComplexitySceneItem,

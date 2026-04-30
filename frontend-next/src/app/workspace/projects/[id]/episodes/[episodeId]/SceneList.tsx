@@ -336,7 +336,7 @@ export function SceneList({ scenes, projectId, episodeId, episodeEffectiveTier, 
       });
 
       // Convert assets to previewable format
-      const previewAssetList: PreviewAsset[] = assets.map((asset) => ({
+      const previewAssetList: PreviewAsset[] = assets.items.map((asset) => ({
         asset,
         type: determineAssetType(asset),
       }));
@@ -358,7 +358,7 @@ export function SceneList({ scenes, projectId, episodeId, episodeEffectiveTier, 
         target_id: scene.id,
         limit: 3,
       });
-      setRecentJobs(jobsResponse);
+      setRecentJobs(jobsResponse.items);
 
       // Fetch QA run for the selected version
       if (selected.id) {
@@ -370,9 +370,9 @@ export function SceneList({ scenes, projectId, episodeId, episodeEffectiveTier, 
             subject_id: selected.id,
             limit: 3,
           });
-          setVersionQARuns(qaRunsResponse);
-          if (qaRunsResponse.length > 0) {
-            const runId = qaRunsResponse[0].id;
+          setVersionQARuns(qaRunsResponse.items);
+          if (qaRunsResponse.items.length > 0) {
+            const runId = qaRunsResponse.items[0].id;
             const qaRunDetail = await apiClient.getQARun(runId);
             setVersionQARun(qaRunDetail);
           } else {
@@ -421,7 +421,7 @@ export function SceneList({ scenes, projectId, episodeId, episodeEffectiveTier, 
         owner_id: version.id,
       });
 
-      const previewAssetList: PreviewAsset[] = assets.map((asset) => ({
+      const previewAssetList: PreviewAsset[] = assets.items.map((asset) => ({
         asset,
         type: determineAssetType(asset),
       }));
@@ -440,9 +440,9 @@ export function SceneList({ scenes, projectId, episodeId, episodeEffectiveTier, 
         subject_id: version.id,
         limit: 3,
       });
-      setVersionQARuns(qaRunsResponse);
-      if (qaRunsResponse.length > 0) {
-        const runId = qaRunsResponse[0].id;
+      setVersionQARuns(qaRunsResponse.items);
+      if (qaRunsResponse.items.length > 0) {
+        const runId = qaRunsResponse.items[0].id;
         const qaRunDetail = await apiClient.getQARun(runId);
         setVersionQARun(qaRunDetail);
       } else {
@@ -958,7 +958,7 @@ export function SceneList({ scenes, projectId, episodeId, episodeEffectiveTier, 
         target_id: previewingScene.id,
         limit: 3,
       });
-      setRecentJobs(jobsResponse);
+      setRecentJobs(jobsResponse.items);
     } catch (error: unknown) {
       console.error('Failed to refresh recent jobs:', error);
       const errorMessage = error instanceof Error ? error.message : '刷新任务列表失败';
@@ -980,9 +980,9 @@ export function SceneList({ scenes, projectId, episodeId, episodeEffectiveTier, 
         subject_id: selectedVersion.id,
         limit: 3,
       });
-      setVersionQARuns(qaRunsResponse);
-      if (qaRunsResponse.length > 0) {
-        const runId = qaRunsResponse[0].id;
+      setVersionQARuns(qaRunsResponse.items);
+      if (qaRunsResponse.items.length > 0) {
+        const runId = qaRunsResponse.items[0].id;
         const qaRunDetail = await apiClient.getQARun(runId);
         setVersionQARun(qaRunDetail);
       } else {

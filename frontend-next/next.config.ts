@@ -19,6 +19,8 @@ const nextConfig: NextConfig = {
       { source: "/api/assets", destination: "http://localhost:8000/api/assets/" },
       { source: "/api/scenes", destination: "http://localhost:8000/api/scenes/" },
       { source: "/api/episodes", destination: "http://localhost:8000/api/episodes/" },
+      { source: "/api/story-bibles", destination: "http://localhost:8000/api/story-bibles/" },
+      { source: "/api/characters", destination: "http://localhost:8000/api/characters/" },
       {
         source: "/api/:path*",
         destination: "http://localhost:8000/api/:path*",

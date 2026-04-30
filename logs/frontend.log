@@ -1,141 +1,33 @@
 npm verbose cli /usr/bin/node /usr/bin/npm
 npm info using npm@10.9.4
 npm info using node@v22.22.0
-npm verbose title npm exec next dev -H 0.0.0.0 -p 3000
-npm verbose argv "exec" "--" "next" "dev" "-H" "0.0.0.0" "-p" "3000"
-npm verbose logfile logs-max:10 dir:/home/hand/.npm/_logs/2026-04-29T21_04_39_058Z-
-npm verbose logfile /home/hand/.npm/_logs/2026-04-29T21_04_39_058Z-debug-0.log
+npm verbose title npm run dev -p 3000
+npm verbose argv "run" "dev" "--" "-p" "3000"
+npm verbose logfile logs-max:10 dir:/home/hand/.npm/_logs/2026-04-30T16_57_09_894Z-
+npm verbose logfile /home/hand/.npm/_logs/2026-04-30T16_57_09_894Z-debug-0.log
+
+> frontend-next@0.1.0 dev
+> next dev -H 0.0.0.0 -p 3000
+
 ▲ Next.js 16.2.4 (Turbopack)
 - Local:         http://localhost:3000
 - Network:       http://0.0.0.0:3000
-✓ Ready in 446ms
+✓ Ready in 458ms
 - Experiments (use with caution):
   · serverActions
 
- GET /workspace/analytics 200 in 608ms (next.js: 230ms, application-code: 378ms)
- GET /workspace/projects 200 in 155ms (next.js: 24ms, application-code: 131ms)
-⚠ Blocked cross-origin request to Next.js dev resource /_next/webpack-hmr from "127.0.0.1".
-Cross-origin access to Next.js dev resources is blocked by default for safety.
-
-To allow this host in development, add it to "allowedDevOrigins" in next.config.js and restart the dev server:
-
-// next.config.js
-module.exports = {
-  allowedDevOrigins: ['127.0.0.1'],
-}
-
-Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
- GET /workspace/projects/94d2ab1c2b8d4ca9b48d61b00f6a03a8/shots 200 in 799ms (next.js: 626ms, application-code: 173ms)
- GET /workspace/delivery 200 in 143ms (next.js: 31ms, application-code: 112ms)
-✓ Compiled in 1558ms
+ GET /workspace 200 in 1634ms (next.js: 1192ms, application-code: 442ms)
+ GET /workspace/settings 200 in 155ms (next.js: 41ms, application-code: 113ms)
+ GET /workspace/projects/d2d947914f28419abdcd77e6ee50a6ac 200 in 949ms (next.js: 517ms, application-code: 432ms)
+ GET /workspace/projects/33e260d6d6564d33ae0d0ff0318d8a6c/shots 200 in 646ms (next.js: 509ms, application-code: 137ms)
+ GET /workspace/projects/eeb699690d8b425e830b489b19c48bbf/shots 200 in 278ms (next.js: 60ms, application-code: 218ms)
+ GET /workspace/render 200 in 124ms (next.js: 41ms, application-code: 83ms)
+ GET /workspace/projects/45e54dd704a649c0b56d136c7a1f8aaa 200 in 297ms (next.js: 33ms, application-code: 264ms)
+ GET /workspace/qa 200 in 170ms (next.js: 42ms, application-code: 128ms)
+ GET /workspace/projects/33e260d6d6564d33ae0d0ff0318d8a6c/story 200 in 636ms (next.js: 519ms, application-code: 117ms)
+ GET /workspace/assets 200 in 195ms (next.js: 63ms, application-code: 132ms)
+ GET /workspace/assets 200 in 98ms (next.js: 7ms, application-code: 91ms)
+ GET /workspace/delivery 200 in 144ms (next.js: 48ms, application-code: 96ms)
+ GET /workspace/settings 200 in 93ms (next.js: 4ms, application-code: 89ms)
+ GET /workspace/assets 200 in 109ms (next.js: 4ms, application-code: 105ms)
 [?25h
-npm verbose cwd /home/hand/work/manju/frontend-next
-npm verbose os Linux 6.8.0-110-generic
-npm verbose node v22.22.0
-npm verbose npm  v10.9.4
-npm verbose exit 143
-npm verbose code 143
-npm verbose cli /usr/bin/node /usr/lib/node_modules/npm/bin/npm-cli.js
-npm info using npm@10.9.4
-npm info using node@v22.22.0
-npm verbose title npm exec next dev -H 0.0.0.0 -p 3000
-npm verbose argv "exec" "--" "next" "dev" "-H" "0.0.0.0" "-p" "3000"
-npm verbose logfile logs-max:10 dir:/home/hand/.npm/_logs/2026-04-29T21_09_24_454Z-
-npm verbose logfile /home/hand/.npm/_logs/2026-04-29T21_09_24_454Z-debug-0.log
-▲ Next.js 16.2.4 (Turbopack)
-- Local:         http://localhost:3000
-- Network:       http://0.0.0.0:3000
-✓ Ready in 531ms
-- Experiments (use with caution):
-  · serverActions
-
- GET /workspace/analytics 200 in 1411ms (next.js: 711ms, application-code: 699ms)
- GET /workspace/analytics 200 in 133ms (next.js: 6ms, application-code: 127ms)
- GET /workspace/analytics 200 in 139ms (next.js: 8ms, application-code: 131ms)
- GET /workspace/settings 200 in 107ms (next.js: 56ms, application-code: 50ms)
- GET /workspace/analytics 200 in 67ms (next.js: 10ms, application-code: 57ms)
- GET /workspace 200 in 110ms (next.js: 56ms, application-code: 54ms)
- GET /workspace/shots 200 in 105ms (next.js: 54ms, application-code: 51ms)
- GET /workspace/qa 200 in 95ms (next.js: 40ms, application-code: 55ms)
- GET /workspace/render 200 in 65ms (next.js: 23ms, application-code: 42ms)
- GET /workspace/qa 200 in 68ms (next.js: 10ms, application-code: 59ms)
- GET /workspace/story 200 in 67ms (next.js: 31ms, application-code: 36ms)
- GET /workspace/projects/e7064d21153b4763876ee598dc7658ba/story 200 in 615ms (next.js: 565ms, application-code: 51ms)
- GET /workspace/story 200 in 70ms (next.js: 10ms, application-code: 60ms)
- GET /workspace/projects/e4a9556b102d43948cea30d11796fd97/story 200 in 97ms (next.js: 58ms, application-code: 38ms)
- GET /workspace/story 200 in 77ms (next.js: 5ms, application-code: 72ms)
- GET /workspace/projects/e4a9556b102d43948cea30d11796fd97/story 200 in 105ms (next.js: 52ms, application-code: 53ms)
- GET /workspace/story 200 in 48ms (next.js: 6ms, application-code: 42ms)
- GET /workspace/delivery 200 in 58ms (next.js: 25ms, application-code: 34ms)
- GET /workspace/assets 200 in 61ms (next.js: 30ms, application-code: 32ms)
- GET /workspace/analytics 200 in 33ms (next.js: 4ms, application-code: 29ms)
- GET /workspace/settings 200 in 31ms (next.js: 3ms, application-code: 29ms)
- GET /workspace/analytics 200 in 63ms (next.js: 3ms, application-code: 60ms)
- GET /workspace/delivery 200 in 29ms (next.js: 3ms, application-code: 26ms)
- GET /workspace/assets 200 in 32ms (next.js: 4ms, application-code: 29ms)
- GET /workspace/analytics 200 in 36ms (next.js: 4ms, application-code: 32ms)
- GET /workspace/settings 200 in 68ms (next.js: 7ms, application-code: 61ms)
- GET /workspace 200 in 50ms (next.js: 5ms, application-code: 45ms)
- GET /workspace/projects 200 in 95ms (next.js: 46ms, application-code: 48ms)
- GET /workspace/projects/94d2ab1c2b8d4ca9b48d61b00f6a03a8 200 in 698ms (next.js: 569ms, application-code: 129ms)
- GET /workspace 200 in 71ms (next.js: 7ms, application-code: 64ms)
- GET /workspace/projects 200 in 96ms (next.js: 8ms, application-code: 88ms)
- GET /workspace/render 200 in 47ms (next.js: 5ms, application-code: 42ms)
- GET /workspace/qa 200 in 68ms (next.js: 8ms, application-code: 61ms)
- GET /workspace/assets 200 in 59ms (next.js: 6ms, application-code: 53ms)
- GET /workspace/story 200 in 78ms (next.js: 8ms, application-code: 70ms)
- GET /workspace/delivery 200 in 62ms (next.js: 7ms, application-code: 55ms)
- GET /workspace/analytics 200 in 59ms (next.js: 6ms, application-code: 53ms)
- GET /workspace/delivery 200 in 43ms (next.js: 5ms, application-code: 38ms)
- GET /workspace 200 in 56ms (next.js: 8ms, application-code: 48ms)
- GET /workspace/analytics 200 in 46ms (next.js: 5ms, application-code: 41ms)
-✓ Compiled in 172ms
-[?25h
-npm verbose cli /usr/bin/node /usr/lib/node_modules/npm/bin/npm-cli.js
-npm info using npm@10.9.4
-npm info using node@v22.22.0
-npm verbose title npm exec next dev -H 0.0.0.0 -p 3000
-npm verbose argv "exec" "--" "next" "dev" "-H" "0.0.0.0" "-p" "3000"
-npm verbose logfile logs-max:10 dir:/home/hand/.npm/_logs/2026-04-29T21_23_42_264Z-
-npm verbose logfile /home/hand/.npm/_logs/2026-04-29T21_23_42_264Z-debug-0.log
-▲ Next.js 16.2.4 (Turbopack)
-- Local:         http://localhost:3000
-- Network:       http://0.0.0.0:3000
-✓ Ready in 447ms
-- Experiments (use with caution):
-  · serverActions
-
- GET /workspace/analytics 200 in 812ms (next.js: 427ms, application-code: 386ms)
- GET /workspace/analytics 200 in 119ms (next.js: 6ms, application-code: 113ms)
- GET /workspace/analytics 200 in 159ms (next.js: 8ms, application-code: 150ms)
- GET /workspace/delivery 200 in 107ms (next.js: 58ms, application-code: 49ms)
- GET /workspace/assets 200 in 57ms (next.js: 25ms, application-code: 31ms)
- GET /workspace/analytics 200 in 54ms (next.js: 7ms, application-code: 47ms)
- GET /workspace/delivery 200 in 56ms (next.js: 6ms, application-code: 50ms)
- GET /workspace/analytics 200 in 57ms (next.js: 5ms, application-code: 52ms)
- GET /workspace/projects 200 in 83ms (next.js: 34ms, application-code: 49ms)
-✓ Compiled in 668ms
- GET /workspace/projects 200 in 163ms (next.js: 7ms, application-code: 157ms)
- GET /workspace/analytics 200 in 71ms (next.js: 17ms, application-code: 53ms)
- GET /workspace/delivery 200 in 66ms (next.js: 6ms, application-code: 60ms)
- GET /workspace/assets 200 in 74ms (next.js: 12ms, application-code: 62ms)
- GET /workspace/story 200 in 78ms (next.js: 28ms, application-code: 49ms)
- GET /workspace/qa 200 in 76ms (next.js: 34ms, application-code: 42ms)
- GET /workspace/render 200 in 98ms (next.js: 50ms, application-code: 48ms)
- GET /workspace/shots 200 in 101ms (next.js: 50ms, application-code: 51ms)
- GET /workspace 200 in 86ms (next.js: 48ms, application-code: 38ms)
- GET /workspace/projects 200 in 92ms (next.js: 10ms, application-code: 82ms)
- GET /workspace/projects 200 in 123ms (next.js: 7ms, application-code: 116ms)
-✓ Compiled in 164ms
-⚠ Fast Refresh had to perform a full reload when ./src/app/workspace/assets/page.tsx changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
- GET /workspace/projects 200 in 135ms (next.js: 7ms, application-code: 128ms)
- GET /workspace/projects 200 in 145ms (next.js: 7ms, application-code: 138ms)
- GET /workspace/shots 200 in 92ms (next.js: 7ms, application-code: 85ms)
- GET /workspace/render 200 in 72ms (next.js: 14ms, application-code: 58ms)
- GET /workspace/qa 200 in 68ms (next.js: 11ms, application-code: 57ms)
- GET /workspace/story 200 in 78ms (next.js: 9ms, application-code: 68ms)
- GET /workspace/assets 200 in 83ms (next.js: 12ms, application-code: 71ms)
- GET /workspace/delivery 200 in 82ms (next.js: 11ms, application-code: 70ms)
- GET /workspace/analytics 200 in 68ms (next.js: 8ms, application-code: 61ms)
- GET /workspace/settings 200 in 57ms (next.js: 29ms, application-code: 28ms)
- GET /workspace 200 in 44ms (next.js: 7ms, application-code: 37ms)

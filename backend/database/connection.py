@@ -8,9 +8,9 @@ from sqlalchemy.orm import DeclarativeBase
 
 load_dotenv()
 
-import os
+from config import settings
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./manju.db")
+DATABASE_URL = settings.DATABASE_URL
 
 # SQLite 需要 check_same_thread=False
 connect_args = {}

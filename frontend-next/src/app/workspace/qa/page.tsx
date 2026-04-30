@@ -51,12 +51,65 @@ const SEVERITY_CONFIG: Record<string, { label: string; color: string; tone: 'neu
   info: { label: '信息', color: '#06B6D4', tone: 'neutral', icon: Info },
 }
 
+const QA_CATEGORIES = [
+  {
+    id: 'technical',
+    label: '技术硬指标',
+    icon: '🔍',
+    responsible: '机器自动',
+    description: '分辨率、时长、码率、音频响度、黑屏检测等技术参数，由系统自动检测，无需人工干预。',
+    gates: ['G5', 'G8', 'G9', 'G10'],
+    examples: '视频分辨率 ≥ 1080p、码率 ≥ 5Mbps、音频响度 -14 LUFS ±2、无连续黑帧 >1s',
+    nextStep: '自动通过则进入下一门禁；失败则阻断流水线并生成工单。',
+  },
+  {
+    id: 'content',
+    label: '内容一致性',
+    icon: '📝',
+    responsible: 'VLM 辅助 + 人工终审',
+    description: '画面内容是否与剧本/分镜描述一致，台词是否与字幕匹配，场景氛围是否符合设定。VLM 初筛，人工最终确认。',
+    gates: ['G1a', 'G3'],
+    examples: '画面是否呈现了分镜要求的"夕阳下的海滩"、角色台词与字幕是否逐字对应',
+    nextStep: 'VLM 通过 → 人工抽检；VLM 标记异常 → 必须人工审核后放行或打回。',
+  },
+  {
+    id: 'continuity',
+    label: '连续性 / 角色一致性',
+    icon: '🧩',
+    responsible: 'VLM 辅助 + 人工终审',
+    description: '相邻镜头间的角色外观、服装、道具是否一致；光影/天气等连续性是否合理。跨场景的角色一致性检查。',
+    gates: ['G2', 'G3'],
+    examples: '同一角色在相邻镜头中发色/服装是否一致、白天切夜晚是否有合理转场',
+    nextStep: 'VLM 通过 → 流水线继续；检测到不一致 → 标记为「待审核」，人工决定重渲染或接受。',
+  },
+  {
+    id: 'safety',
+    label: '合规 / 版权 / 敏感风险',
+    icon: '🛡️',
+    responsible: '机器初筛 + 人工最终确认',
+    description: '版权风险（未授权商标、音乐）、平台合规（暴力/色情/政治敏感）、JSON 格式合规、Prompt 安全性。机器初筛，人工最终放行。',
+    gates: ['G1b', 'G1c', 'G1d', 'G11', 'G12'],
+    examples: '画面中是否出现未授权品牌 Logo、台词是否涉及敏感话题、JSON 是否可被下游正确解析',
+    nextStep: '合规红线 (G1b) 触发 → 流水线立即阻断，必须人工处理。其余风险 → 标记并进入人工终审队列。',
+  },
+  {
+    id: 'rendering',
+    label: '渲染 / 生成质量',
+    icon: '🎨',
+    responsible: '机器自动',
+    description: '图像生成质量、动态视频质量、唇形同步精度、人脸完整性、构图安全区等，由系统自动评分。',
+    gates: ['G2', 'G4', 'G5', 'G6', 'G7'],
+    examples: '人脸无畸变/无多余肢体、唇形同步偏差 <200ms、主体在构图安全区内、视频无闪烁/伪影',
+    nextStep: '分数 ≥ 阈值自动通过；低于阈值 → 阻断并建议重渲染或调整 Prompt。',
+  },
+] as const
+
 export default function QAPage() {
   const [runs, setRuns] = useState<QARun[]>([])
   const [issues, setIssues] = useState<QAIssue[]>([])
   const [selectedRun, setSelectedRun] = useState<QARunDetail | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'runs' | 'issues'>('runs')
+  const [activeTab, setActiveTab] = useState<'overview' | 'runs' | 'issues'>('overview')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [severityFilter, setSeverityFilter] = useState<string>('all')
 
@@ -67,8 +120,8 @@ export default function QAPage() {
         apiClient.listQARuns({ limit: 100 }),
         apiClient.listQAIssues({ limit: 100 }),
       ])
-      setRuns(runsData)
-      setIssues(issuesData)
+      setRuns(runsData.items)
+      setIssues(issuesData.items)
     } catch (error) {
       console.error('Failed to load QA data:', error)
     } finally {
@@ -117,7 +170,10 @@ export default function QAPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6 space-y-6">
-      <PageHeader title="质检中心" description="集中查看质检记录、问题清单与门禁结果。" />
+      <PageHeader
+        title="质检中心"
+        description="漫剧生产流水线的质量门禁系统。每个生产环节完成后自动触发对应质检门禁，机器自动检查技术指标与渲染质量，VLM 辅助检查内容一致性与角色连续性，合规与版权风险由人工最终确认。"
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-4 gap-4">
@@ -151,9 +207,87 @@ export default function QAPage() {
         </GlassSurface>
       </div>
 
+      {/* QA 概览：检查类别说明 */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {QA_CATEGORIES.map((cat) => {
+            const catRuns = runs.filter((r) => (cat.gates as readonly string[]).includes(r.gate_code))
+            const catPass = catRuns.filter((r) => r.status === 'passed').length
+            const catFail = catRuns.filter((r) => r.status === 'failed').length
+            const catReview = catRuns.filter((r) => r.status === 'needs_review').length
+            return (
+              <GlassSurface key={cat.id} variant="panel" className="!p-5 space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl shrink-0">{cat.icon}</span>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-white">{cat.label}</h3>
+                    <GlassChip tone="neutral" className="text-[10px] mt-1">
+                      {cat.responsible}
+                    </GlassChip>
+                  </div>
+                </div>
+                <p className="text-xs text-zinc-400 leading-relaxed">{cat.description}</p>
+                <div className="text-xs space-y-1">
+                  <div className="text-zinc-500"><span className="text-zinc-300 font-medium">检查门禁：</span>{cat.gates.map((g) => GATE_LABELS[g] || g).join('、')}</div>
+                  <div className="text-zinc-500"><span className="text-zinc-300 font-medium">检查示例：</span>{cat.examples}</div>
+                  <div className="text-zinc-500"><span className="text-zinc-300 font-medium">后续处理：</span>{cat.nextStep}</div>
+                </div>
+                {catRuns.length > 0 && (
+                  <div className="flex gap-3 pt-2 border-t border-zinc-800">
+                    <span className="text-xs text-zinc-500">历史统计：
+                      <span style={{ color: '#22C55E' }} className="font-mono">{catPass} 通过</span>
+                      <span className="mx-1">·</span>
+                      <span style={{ color: '#EF4444' }} className="font-mono">{catFail} 失败</span>
+                      <span className="mx-1">·</span>
+                      <span style={{ color: '#F97316' }} className="font-mono">{catReview} 待审</span>
+                    </span>
+                  </div>
+                )}
+              </GlassSurface>
+            )
+          })}
+        </div>
+      )}
+
+      {/* 门禁流程说明 */}
+      {activeTab === 'overview' && (
+        <GlassSurface variant="panel" className="!p-5">
+          <h3 className="text-sm font-semibold text-white mb-3">📋 质检门禁流程</h3>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {Object.entries(GATE_LABELS).map(([code, label]) => {
+              const cat = QA_CATEGORIES.find((c) => (c.gates as readonly string[]).includes(code))
+              return (
+                <div key={code} className="flex items-center gap-1.5 bg-zinc-800/60 rounded-md px-2.5 py-1.5">
+                  <span className="font-mono text-zinc-300 font-medium">{code}</span>
+                  <span className="text-zinc-400">{label}</span>
+                  {cat && (
+                    <span className="text-zinc-600 ml-1">({cat.responsible.split(' + ')[0]})</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs text-zinc-500 mt-3 leading-relaxed">
+            门禁按生产阶段自动触发：剧本生成阶段触发 G1a-G1d，图像/视频渲染阶段触发 G2-G7，
+            音频后处理阶段触发 G8-G9，成片合成后触发 G10-G12。
+            严重失败将阻断流水线，需人工处理后手动重试。
+          </p>
+        </GlassSurface>
+      )}
+
       {/* Tabs */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-1">
         <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'overview'
+                ? 'bg-zinc-700/50 text-white'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            检查概览
+          </button>
           <button
             onClick={() => setActiveTab('runs')}
             className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -178,7 +312,7 @@ export default function QAPage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'runs' ? (
+      {activeTab !== 'overview' && activeTab === 'runs' ? (
         <div className="space-y-4">
           {/* Filter */}
           <div className="flex items-center justify-between">
@@ -280,7 +414,7 @@ export default function QAPage() {
             </GlassSurface>
           )}
         </div>
-      ) : (
+      ) : activeTab === 'issues' ? (
         <div className="space-y-4">
           {/* Filter */}
           <div className="flex gap-2">
@@ -371,7 +505,7 @@ export default function QAPage() {
             </div>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* Detail Panel */}
       {selectedRun && (

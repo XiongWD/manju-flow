@@ -1,4 +1,6 @@
 """API Key CRUD 路由 — 完整实现"""
+import logging
+
 
 import hashlib
 import secrets
@@ -12,6 +14,8 @@ from database import get_db
 from database.models import ApiKey
 from schemas.apikey import ApiKeyCreate, ApiKeyCreated, ApiKeyRead, ApiKeyUpdate
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/apikeys", tags=["apikeys"])
 
 
@@ -48,7 +52,9 @@ async def create_apikey(body: ApiKeyCreate, db: AsyncSession = Depends(get_db)):
 
 @router.get("/", response_model=list[ApiKeyRead])
 async def list_apikeys(db: AsyncSession = Depends(get_db)):
-    """获取 API Key 列表（不返回密钥明文）"""
+    """获取 API Key 列表（不返回密钥明文）
+    # 分页豁免：列表固定小
+    """
     result = await db.execute(select(ApiKey).order_by(ApiKey.created_at.desc()))
     return result.scalars().all()
 

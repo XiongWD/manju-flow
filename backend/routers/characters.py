@@ -1,13 +1,17 @@
 """Character CRUD 路由 — 含角色-剧集关联"""
+import logging
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from database.models import Character, CharacterEpisode
 from schemas.character import CharacterCreate, CharacterUpdate, CharacterRead
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/characters", tags=["characters"])
 
 
@@ -70,25 +74,39 @@ async def create_character(body: CharacterCreate, db: AsyncSession = Depends(get
     return _to_read(obj, await _load_episode_ids(db, obj.id))
 
 
-@router.get("/", response_model=list[CharacterRead])
-async def list_characters(project_id: str, db: AsyncSession = Depends(get_db)):
+@router.get("/")
+async def list_characters(
+    project_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
+    search: str = Query("", description="搜索关键词"),
+    db: AsyncSession = Depends(get_db),
+):
     """按项目获取角色列表"""
-    result = await db.execute(
-        select(Character)
-        .where(Character.project_id == project_id)
-        .order_by(Character.created_at.desc())
-    )
+    limit = min(limit, 200)
+    q = select(Character).where(Character.project_id == project_id)
+    if search:
+        q = q.filter(or_(
+            Character.name.ilike(f"%{search}%"),
+            Character.description.ilike(f"%{search}%"),
+            Character.role_type.ilike(f"%{search}%"),
+        ))
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar() or 0
+    q = q.order_by(Character.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(q)
     chars = result.scalars().all()
     out = []
     for c in chars:
         eids = await _load_episode_ids(db, c.id)
         out.append(CharacterRead(**_to_read(c, eids)))
-    return out
+    return {"items": out, "total": total, "skip": skip, "limit": limit}
 
 
 @router.get("/by-episode/{episode_id}", response_model=list[CharacterRead])
 async def list_characters_by_episode(episode_id: str, db: AsyncSession = Depends(get_db)):
     """按剧集获取关联角色列表"""
+    # 分页豁免：列表固定小
     result = await db.execute(
         select(Character)
         .join(CharacterEpisode, CharacterEpisode.character_id == Character.id)

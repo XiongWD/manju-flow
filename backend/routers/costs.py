@@ -1,4 +1,8 @@
+
+logger = logging.getLogger(__name__)
 """成本追踪路由"""
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -7,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.connection import get_db
 from database.models import Episode, Scene
 from schemas.cost import (
+
     CostRecordCreate,
     CostRecordResponse,
     EpisodeCostSummary,
@@ -37,7 +42,9 @@ async def record_cost(data: CostRecordCreate, db: AsyncSession = Depends(get_db)
     summary="获取镜头成本列表",
 )
 async def get_scene_costs(scene_id: str, db: AsyncSession = Depends(get_db)):
-    """返回指定镜头的所有成本记录，按时间倒序。"""
+    """返回指定镜头的所有成本记录，按时间倒序。
+    # 分页豁免：列表固定小
+    """
     scene = await db.execute(select(Scene).where(Scene.id == scene_id))
     if scene.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")

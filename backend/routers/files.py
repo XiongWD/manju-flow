@@ -1,10 +1,39 @@
 """文件上传与资产关联路由 — MinIO/S3 兼容"""
+import logging
 
-import os
+
+from config import settings
 import tempfile
 from typing import Optional
 
+
+logger = logging.getLogger(__name__)
+ALLOWED_EXTENSIONS = {
+    'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico',
+    'mp4', 'mov', 'avi', 'webm', 'mkv',
+    'mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a',
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'json', 'srt', 'vtt',
+}
+
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize uploaded filename to prevent path traversal and other attacks."""
+    # Extract just the filename (strip directory components)
+    filename = os.path.basename(filename)
+    # Remove null bytes
+    filename = filename.replace('\x00', '')
+    # Remove path separators
+    filename = filename.replace('/', '').replace('\\', '')
+    # Replace path traversal sequences
+    filename = filename.replace('..', '_')
+    # Limit length to 255 chars while preserving extension
+    if len(filename) > 255:
+        name, ext = os.path.splitext(filename)
+        filename = name[: 255 - len(ext)] + ext
+    return filename
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,14 +66,27 @@ async def upload_file(
     if not file.filename:
         raise HTTPException(status_code=400, detail="文件名不能为空")
 
+    safe_name = sanitize_filename(file.filename)
+
+    # 校验文件扩展名
+    ext = safe_name.rsplit('.', 1)[-1].lower() if '.' in safe_name else ''
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"不支持的文件类型: {ext or '(无扩展名)'}")
+
+    # 校验文件大小
+    max_bytes = settings.MAX_UPLOAD_BYTES
+    max_mb = max_bytes / (1024 * 1024)
+    content = await file.read()
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"文件大小超过限制（最大 {max_mb:.0f}MB）")
+
     # 保存到临时文件
     temp_dir = tempfile.gettempdir()
-    temp_path = os.path.join(temp_dir, f"manju_upload_{file.filename}")
+    temp_path = os.path.join(temp_dir, f"manju_upload_{safe_name}")
 
     try:
         # 写入临时文件
         with open(temp_path, "wb") as f:
-            content = await file.read()
             f.write(content)
 
         file_size = len(content)
@@ -54,7 +96,7 @@ async def upload_file(
         object_name, public_url, _ = await storage.upload_file(
             file_path=temp_path,
             content_type=file.content_type,
-            metadata={"original_filename": file.filename},
+            metadata={"original_filename": safe_name},
             prefix=asset_type,
         )
 
@@ -65,7 +107,7 @@ async def upload_file(
             uri=public_url,
             mime_type=file.content_type,
             file_size=file_size,
-            metadata_json={"object_name": object_name, "original_filename": file.filename},
+            metadata_json={"object_name": object_name, "original_filename": safe_name},
         )
         db.add(asset)
         await db.flush()
@@ -132,6 +174,55 @@ async def preview_asset(asset_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"生成预签名 URL 失败: {str(e)}")
 
 
+@router.get("/serve/{asset_id}")
+async def serve_file(asset_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    通过后端代理提供文件内容，避免浏览器直接访问 MinIO 时的 403/签名问题。
+    """
+    asset = await db.get(Asset, asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="资产不存在")
+
+    object_name = asset.metadata_json.get("object_name") if asset.metadata_json else None
+    if not object_name:
+        raise HTTPException(status_code=400, detail="该资产无可用文件（缺少 object_name）")
+
+    try:
+        storage = get_storage_client()
+        import tempfile
+        tmp = tempfile.mktemp(suffix="_serve")
+        ok = await storage.download_file(object_name, tmp)
+        if not ok:
+            raise HTTPException(status_code=500, detail="文件下载失败")
+        content_type = asset.mime_type or "application/octet-stream"
+        filename = (asset.metadata_json.get("original_filename") or object_name.split("/")[-1]) if asset.metadata_json else object_name.split("/")[-1]
+
+        import os
+        file_size = os.path.getsize(tmp)
+
+        def iterfile():
+            with open(tmp, "rb") as f:
+                yield from f
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+        return StreamingResponse(
+            iterfile(),
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{filename}"',
+                "Content-Length": str(file_size),
+                "Cache-Control": "private, max-age=3600",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文件服务失败: {str(e)}")
+
+
 @router.post("/assets/{asset_id}/link", response_model=AssetLinkRead, status_code=status.HTTP_201_CREATED)
 async def link_asset(
     asset_id: str,
@@ -169,7 +260,8 @@ async def list_asset_links(asset_id: str, db: AsyncSession = Depends(get_db)):
     if not asset:
         raise HTTPException(status_code=404, detail="资产不存在")
 
-    q = select(AssetLink).where(AssetLink.asset_id == asset_id)
+    # 分页豁免：列表固定小
+    links_q = select(AssetLink).where(AssetLink.asset_id == asset_id)
     result = await db.execute(q)
     links = result.scalars().all()
     return links
@@ -193,11 +285,27 @@ async def batch_upload_files(
     for file in files:
         temp_path = None
         try:
+            if not file.filename:
+                raise ValueError("文件名不能为空")
+
+            safe_name = sanitize_filename(file.filename)
+
+            # 校验文件扩展名
+            ext = safe_name.rsplit('.', 1)[-1].lower() if '.' in safe_name else ''
+            if ext not in ALLOWED_EXTENSIONS:
+                raise ValueError(f"不支持的文件类型: {ext or '(无扩展名)'}")
+
+            # 校验文件大小
+            max_bytes = settings.MAX_UPLOAD_BYTES
+            content = await file.read()
+            if len(content) > max_bytes:
+                max_mb = max_bytes / (1024 * 1024)
+                raise ValueError(f"文件大小超过限制（最大 {max_mb:.0f}MB）")
+
             temp_dir = tempfile.gettempdir()
-            temp_path = os.path.join(temp_dir, f"manju_batch_{file.filename}")
+            temp_path = os.path.join(temp_dir, f"manju_batch_{safe_name}")
 
             with open(temp_path, "wb") as f:
-                content = await file.read()
                 f.write(content)
 
             file_size = len(content)
@@ -206,7 +314,7 @@ async def batch_upload_files(
             object_name, public_url, _ = await storage.upload_file(
                 file_path=temp_path,
                 content_type=file.content_type,
-                metadata={"original_filename": file.filename},
+                metadata={"original_filename": safe_name},
                 prefix=asset_type,
             )
 
@@ -217,19 +325,25 @@ async def batch_upload_files(
                 "uri": public_url,
                 "mime_type": file.content_type,
                 "file_size": file_size,
-                "metadata_json": {"object_name": object_name, "original_filename": file.filename},
-                "filename": file.filename,
+                "metadata_json": {"object_name": object_name, "original_filename": safe_name},
+                "filename": safe_name,
             })
 
             results.append({
-                "filename": file.filename,
+                "filename": safe_name,
                 "success": True,
                 "uri": public_url,
             })
 
+        except ValueError as e:
+            results.append({
+                "filename": file.filename or "",
+                "success": False,
+                "error": str(e),
+            })
         except Exception as e:
             results.append({
-                "filename": file.filename,
+                "filename": file.filename or "",
                 "success": False,
                 "error": str(e),
             })

@@ -1,3 +1,5 @@
+
+logger = logging.getLogger(__name__)
 """发布 & 交付路由 — 041b2
 
 API 端点：
@@ -11,17 +13,20 @@ API 端点：
 - POST   /api/publish/delivery-packages/{id}/variants  创建平台变体
 - GET    /api/publish/variants                 列出平台变体
 """
+import logging
+
 
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import async_session_factory
 from database.models import DeliveryPackage, PublishJob, PublishVariant
 from schemas.delivery import (
+
     DeliveryPackageRead,
     DeliveryPackageSummary,
     DeliveryPackageWithVariantsRead,
@@ -81,17 +86,24 @@ async def create_delivery_package(
         raise HTTPException(status_code=500, detail=f"Build failed: {e}")
 
 
-@router.get("/delivery-packages", response_model=list[DeliveryPackageSummary])
+@router.get("/delivery-packages")
 async def list_delivery_packages(
     episode_id: Optional[str] = Query(None, description="按剧集筛选"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(_get_db),
 ):
     """列出交付包"""
-    stmt = select(DeliveryPackage).order_by(DeliveryPackage.created_at.desc())
+    limit = min(limit, 200)
+    stmt = select(DeliveryPackage)
     if episode_id:
         stmt = stmt.where(DeliveryPackage.episode_id == episode_id)
+    total_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
+    total = total_result.scalar() or 0
+    stmt = stmt.order_by(DeliveryPackage.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    items = result.scalars().all()
+    return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
 @router.get("/delivery-packages/{pkg_id}", response_model=DeliveryPackageWithVariantsRead)
@@ -177,20 +189,27 @@ async def recheck_delivery_package(
 
 # ── Platform Variants ───────────────────────────────────────────────────
 
-@router.get("/variants", response_model=list[PlatformVariantRead])
+@router.get("/variants")
 async def list_platform_variants(
     delivery_package_id: Optional[str] = Query(None, description="按交付包筛选"),
     platform: Optional[str] = Query(None, description="按平台筛选"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(_get_db),
 ):
     """列出平台变体"""
-    stmt = select(PublishVariant).order_by(PublishVariant.created_at.desc())
+    limit = min(limit, 200)
+    stmt = select(PublishVariant)
     if delivery_package_id:
         stmt = stmt.where(PublishVariant.delivery_package_id == delivery_package_id)
     if platform:
         stmt = stmt.where(PublishVariant.platform == platform)
+    total_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
+    total = total_result.scalar() or 0
+    stmt = stmt.order_by(PublishVariant.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    items = result.scalars().all()
+    return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
 # ── Publish Jobs ──────────────────────────────────────────────────────
@@ -226,20 +245,27 @@ async def create_publish_job(
         raise HTTPException(status_code=500, detail=f"Failed to create publish job: {e}")
 
 
-@router.get("/jobs", response_model=list[PublishJobSummary])
+@router.get("/jobs")
 async def list_publish_jobs(
     episode_id: Optional[str] = Query(None, description="按剧集筛选"),
     status: Optional[str] = Query(None, description="按状态筛选"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(_get_db),
 ):
     """列出发布任务"""
-    stmt = select(PublishJob).order_by(PublishJob.created_at.desc())
+    limit = min(limit, 200)
+    stmt = select(PublishJob)
     if episode_id:
         stmt = stmt.where(PublishJob.episode_id == episode_id)
     if status:
         stmt = stmt.where(PublishJob.status == status)
+    total_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
+    total = total_result.scalar() or 0
+    stmt = stmt.order_by(PublishJob.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    items = result.scalars().all()
+    return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
 @router.get("/jobs/{job_id}")

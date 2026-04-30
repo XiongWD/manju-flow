@@ -32,7 +32,7 @@ export default function WorkspacePage() {
     apiClient
       .listProjects()
       .then((data) => {
-        setProjects(data);
+        setProjects(data.items);
         setLoading(false);
       })
       .catch((error) => {

@@ -1,7 +1,9 @@
 """剧集路由 — 完整 CRUD 实现"""
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func
+from sqlalchemy import or_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_db
@@ -12,24 +14,39 @@ from schemas.scene import SceneWithVersionSummary, SceneVersionSummary
 from services.pipeline.orchestrator import start_mock_scene_job
 from services.pipeline.tier_config import resolve_episode_tier
 from services.pipeline.version_lock import VersionLockService
+from services.broadcast import broadcast
 from database.models import QARun, QAIssue
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/episodes", tags=["episodes"])
 
 
-@router.get("/", response_model=list[EpisodeRead])
+@router.get("/")
 async def list_episodes(
     project_id: str = Query(None, description="项目 ID"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
+    search: str = Query("", description="搜索关键词"),
     db: AsyncSession = Depends(get_db),
 ):
     """获取剧集列表"""
+    limit = min(limit, 200)
     q = select(Episode)
     if project_id:
         q = q.where(Episode.project_id == project_id)
-    q = q.order_by(Episode.episode_no)
+    if search:
+        q = q.filter(or_(
+            Episode.title.ilike(f"%{search}%"),
+            Episode.outline.ilike(f"%{search}%"),
+        ))
+    # count
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar() or 0
+    q = q.order_by(Episode.episode_no).offset(skip).limit(limit)
     result = await db.execute(q)
-    episodes = result.scalars().all()
-    return episodes
+    items = result.scalars().all()
+    return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
 @router.post("/", response_model=EpisodeRead, status_code=status.HTTP_201_CREATED)
@@ -39,6 +56,7 @@ async def create_episode(body: EpisodeCreate, db: AsyncSession = Depends(get_db)
     db.add(episode)
     await db.flush()
     await db.refresh(episode)
+    await broadcast.broadcast(f"project:{episode.project_id}", {"type": "created", "entity": "episode", "id": episode.id})
     return episode
 
 
@@ -113,24 +131,28 @@ async def update_episode(
     db: AsyncSession = Depends(get_db)
 ):
     """更新剧集"""
-    episode = await db.get(Episode, episode_id)
+    result = await db.execute(select(Episode).where(Episode.id == episode_id))
+    episode = result.scalar_one_or_none()
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
     for key, value in body.model_dump(exclude_unset=True).items():
         setattr(episode, key, value)
     await db.flush()
     await db.refresh(episode)
+    await broadcast.broadcast(f"project:{episode.project_id}", {"type": "updated", "entity": "episode", "id": episode_id})
     return episode
 
 
 @router.delete("/{episode_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_episode(episode_id: str, db: AsyncSession = Depends(get_db)):
     """删除剧集"""
-    episode = await db.get(Episode, episode_id)
+    result = await db.execute(select(Episode).where(Episode.id == episode_id))
+    episode = result.scalar_one_or_none()
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
     await db.delete(episode)
     await db.flush()
+    await broadcast.broadcast(f"project:{episode.project_id}", {"type": "deleted", "entity": "episode", "id": episode_id})
 
 
 @router.post("/{episode_id}/mock-produce-scene/{scene_id}")

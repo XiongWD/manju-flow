@@ -1,4 +1,8 @@
+
+logger = logging.getLogger(__name__)
 """剧本解析路由"""
+import logging
+
 
 from typing import Optional
 
@@ -9,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.connection import get_db
 from database.models import Episode, ScriptIssue, ScriptParseReport, ShotImportReport
 from schemas.script_parse import (
+
     ScriptParseReportRead,
     ScriptParseRequest,
     ScriptParseResponse,
@@ -69,7 +74,9 @@ async def list_parse_reports(
     episode_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """获取某个 episode 的所有解析历史"""
+    """获取某个 episode 的所有解析历史
+    # 分页豁免：列表固定小
+    """
     episode = await db.get(Episode, episode_id)
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")

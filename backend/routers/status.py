@@ -2,6 +2,8 @@
 
 手动触发状态传播、查询进度。
 """
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +13,8 @@ from database.models import Scene, Episode, Project
 from schemas.status import ProgressInfo, StatusPropagationResponse
 from services.status_propagation import StatusPropagationService
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["status"])
 
 

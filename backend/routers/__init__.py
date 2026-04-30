@@ -21,6 +21,7 @@ from .complexity import router as complexity_router
 from .timeline import router as timeline_router
 from .costs import router as costs_router
 from .status import router as status_router
+from .auth import router as auth_router
 
 __all__ = [
     "projects_router", "apikeys_router", "episodes_router",
@@ -32,4 +33,5 @@ __all__ = [
     "stills_router", "complexity_router", "timeline_router",
     "costs_router",
     "status_router",
+    "auth_router",
 ]

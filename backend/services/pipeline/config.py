@@ -136,3 +136,56 @@ def get_c2pa_config() -> dict:
         "tool_path": os.getenv("C2PATOOL_PATH", ""),
         "signing_key_path": os.getenv("C2PA_SIGNING_KEY_PATH", ""),
     }
+
+
+# ── Orchestrator 步骤常量（从 orchestrator.py Phase 5 拆分） ──
+
+# Pipeline 步骤定义（Mock 和 Real 通用）
+PIPELINE_STEPS = [
+    {"key": "character_assets", "label": "角色资产生成", "tool": "character_gen"},
+    {"key": "video_generation", "label": "视频生成", "tool": "video_gen"},
+    {"key": "audio_generation", "label": "音频生成", "tool": "audio_gen"},
+    {"key": "compose", "label": "合成混音", "tool": "compose"},
+    {"key": "qa_check", "label": "质检检查", "tool": "qa_gate"},
+    {"key": "c2pa_sign", "label": "C2PA 签名", "tool": "c2pa_sign"},
+]
+
+# QA gate codes per step
+QA_GATES = {
+    "character_assets": "G2",  # 043b 实现
+    "video_generation": "G6",
+    "audio_generation": "G8",
+    "compose": "G9",
+}
+
+# Fallback chain: SSS -> SS -> S -> A_FALLBACK -> NEEDS_REVIEW
+FALLBACK_CHAIN = {
+    "SSS": "SS",
+    "SS": "S",
+    "S": "A_FALLBACK",
+    "A_FALLBACK": "NEEDS_REVIEW",
+}
+
+# Provider mapping per tier
+TIER_PROVIDER_MAP = {
+    "SSS": {
+        "video": "lora_seedance",
+        "audio": "elevenlabs",
+    },
+    "SS": {
+        "video": "seedance",
+        "audio": "elevenlabs",
+    },
+    "S": {
+        "video": "kling",
+        "audio": "elevenlabs",
+    },
+    "A": {
+        "video": "kling",
+        "audio": "fish_audio",
+    },
+    "A_FALLBACK": {
+        "video": "kling",
+        "audio": "fish_audio",
+    },
+}

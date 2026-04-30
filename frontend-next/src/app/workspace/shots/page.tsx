@@ -31,7 +31,7 @@ export default function ShotProjectPickerPage() {
 
   useEffect(() => {
     apiClient.listProjects()
-      .then(setProjects)
+      .then((data) => setProjects(data.items))
       .finally(() => setLoading(false))
   }, [])
 

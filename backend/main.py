@@ -1,7 +1,9 @@
 """Manju Production OS — FastAPI 入口"""
 
+import logging
 import asyncio
-import os
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Set
 
@@ -9,7 +11,10 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from config import settings
 from database.connection import Base, async_engine
+from middleware.auth import AuthMiddleware
+from services.broadcast import broadcast
 from routers import (
     projects_router,
     apikeys_router,
@@ -34,10 +39,13 @@ from routers import (
     timeline_router,
     costs_router,
     status_router,
+    auth_router,
 )
 
 # ── WebSocket 连接池 ──
 _active_websockets: Set[WebSocket] = set()
+
+logger = logging.getLogger("manju")
 
 
 async def _broadcast_progress(event: dict):
@@ -77,9 +85,37 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     register_progress_callback(_broadcast_progress)
 
     # 建表（可通过 DB_AUTO_CREATE=false 禁止）
-    if os.getenv("DB_AUTO_CREATE", "true").lower() != "false":
+    if settings.DB_AUTO_CREATE:
         async with async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+    # 初始管理员策略
+    admin_email = settings.MANJU_ADMIN_EMAIL
+    admin_password = settings.MANJU_ADMIN_PASSWORD
+    if admin_email and admin_password:
+        from sqlalchemy import select, func
+        from database.connection import async_session_factory
+        from database.models import User
+        from services.auth import hash_password
+
+        async with async_session_factory() as session:
+            count = await session.execute(select(func.count()).select_from(User))
+            if count.scalar() == 0:
+                admin = User(
+                    email=admin_email,
+                    password_hash=hash_password(admin_password),
+                    display_name="Admin",
+                    role="admin",
+                )
+                session.add(admin)
+                await session.commit()
+                logger.info("Initial admin user created: %s", admin_email)
+    else:
+        logger.warning(
+            "MANJU_ADMIN_EMAIL / MANJU_ADMIN_PASSWORD not set. "
+            "Create admin via POST /api/auth/register"
+        )
+
     yield
     await async_engine.dispose()
 
@@ -93,7 +129,7 @@ app = FastAPI(
 )
 
 # CORS
-_cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+_cors_origins = settings.CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _cors_origins],
@@ -101,6 +137,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Auth middleware (before routers so it runs first)
+app.add_middleware(AuthMiddleware)
 
 # 注册路由
 app.include_router(projects_router)
@@ -126,13 +165,13 @@ app.include_router(complexity_router)
 app.include_router(timeline_router)
 app.include_router(costs_router)
 app.include_router(status_router)
+app.include_router(auth_router)
 
 
 # ── 全局异常处理器 ──
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    import traceback
-    traceback.print_exc()
+    logger.exception("Unhandled exception on %s %s", request.method, request.url)
     return JSONResponse(
         status_code=500,
         content={"code": "INTERNAL_ERROR", "message": "服务器内部错误", "details": {}},
@@ -140,6 +179,20 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # WebSocket 升级版本
+@app.websocket("/ws/{channel}")
+async def ws_channel(ws: WebSocket, channel: str):
+    """频道级 WebSocket 广播（多标签同步）"""
+    await broadcast.connect(channel, ws)
+    try:
+        while True:
+            data = await ws.receive_text()
+            # 客户端消息暂不处理，广播由服务端触发
+    except Exception:
+        pass
+    finally:
+        broadcast.disconnect(channel, ws)
+
+
 @app.websocket("/ws/live")
 async def websocket_live(websocket: WebSocket):
     """实时进度推送（支持作业进度广播）"""

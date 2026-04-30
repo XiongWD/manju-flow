@@ -4,7 +4,6 @@
 """
 
 import hashlib
-import os
 from datetime import timedelta
 from typing import Optional, Tuple
 from urllib.parse import urljoin
@@ -14,12 +13,13 @@ from pydantic import BaseModel
 
 class StorageConfig(BaseModel):
     """存储配置"""
-    endpoint: str = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
-    access_key: str = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-    secret_key: str = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-    bucket_name: str = os.getenv("MINIO_BUCKET", "manju-assets")
-    use_ssl: bool = os.getenv("MINIO_USE_SSL", "false").lower() == "true"
-    public_url_base: Optional[str] = os.getenv("MINIO_PUBLIC_URL", None)
+    from config import settings
+    endpoint: str = settings.MINIO_ENDPOINT
+    access_key: str = settings.MINIO_ACCESS_KEY
+    secret_key: str = settings.MINIO_SECRET_KEY
+    bucket_name: str = settings.MINIO_BUCKET
+    use_ssl: bool = settings.MINIO_USE_SSL
+    public_url_base: Optional[str] = settings.MINIO_PUBLIC_URL or None
 
 
 # 懒加载导入，避免依赖问题（minio 可能未安装）

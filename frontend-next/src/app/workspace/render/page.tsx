@@ -94,7 +94,7 @@ function RenderQueueContent() {
       const data = await apiClient.listEpisodes({ project_id: projectId, limit: 100 })
       // Fetch scenes for each episode
       const episodesWithScenes = await Promise.all(
-        data.map(async (ep) => {
+        data.items.map(async (ep) => {
           const detail = await apiClient.getEpisode(ep.id)
           return detail
         })
@@ -112,11 +112,11 @@ function RenderQueueContent() {
     try {
       if (projectId) {
         const data = await apiClient.listJobs({ project_id: projectId })
-        setJobs(data)
+        setJobs(data.items)
       } else {
         // Fetch all jobs when no project filter
         const data = await apiClient.listJobs()
-        setJobs(data)
+        setJobs(data.items)
       }
     } catch (error) {
       console.error('Failed to load jobs:', error)

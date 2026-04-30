@@ -20,10 +20,8 @@ class StorageService:
     def __init__(self):
         self._minio_client: Optional[MinIOStorageClient] = None
         self._minio_available: Optional[bool] = None
-        self._local_base: str = os.getenv(
-            "STORAGE_LOCAL_PATH",
-            os.path.join(os.path.dirname(__file__), "..", "..", "storage_data"),
-        )
+        from config import settings
+        self._local_base: str = settings.STORAGE_LOCAL_PATH
 
     def _ensure_local_dir(self, subpath: str) -> str:
         """确保本地目录存在，返回完整路径"""

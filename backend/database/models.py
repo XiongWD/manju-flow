@@ -1,9 +1,10 @@
-"""Manju Production OS — 全部 30 个 ORM 模型
+"""Manju Production OS — 全部 ORM 模型
 
 模型清单：
-1.  projects           2.  project_configs     3.  story_bibles
-4.  characters          5.  character_assets    6.  episodes
-7.  scenes              8.  scene_versions      9.  assets
+ 0.  users (auth)
+ 1.  projects           2.  project_configs     3.  story_bibles
+ 4.  characters          5.  character_assets    6.  episodes
+ 7.  scenes              8.  scene_versions      9.  assets
 10. asset_links         11. jobs               12. job_steps
 13. qa_runs             14. qa_issues          15. publish_jobs
 16. publish_variants    17. analytics_snapshots 18. knowledge_items
@@ -75,7 +76,7 @@ class ProjectConfig(Base):
     __tablename__ = "project_configs"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     config_key: Mapped[str] = mapped_column(String(128), nullable=False, comment="配置键")
     config_value_json: Mapped[Optional[dict]] = mapped_column(JSON, comment="配置值（JSON）")
     version: Mapped[int] = mapped_column(Integer, default=1, comment="配置版本号")
@@ -90,7 +91,7 @@ class StoryBible(Base):
     __tablename__ = "story_bibles"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     title: Mapped[Optional[str]] = mapped_column(String(256), comment="标题")
     summary: Mapped[Optional[str]] = mapped_column(Text, comment="一句话摘要")
     theme: Mapped[Optional[str]] = mapped_column(String(256), comment="核心主题")
@@ -110,7 +111,7 @@ class Character(Base):
     __tablename__ = "characters"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False, comment="角色名")
     role_type: Mapped[Optional[str]] = mapped_column(String(32), comment="主角/配角/反派/路人")
     description: Mapped[Optional[str]] = mapped_column(Text, comment="角色描述")
@@ -138,7 +139,7 @@ class CharacterEpisode(Base):
         ForeignKey("characters.id", ondelete="CASCADE"), primary_key=True
     )
     episode_id: Mapped[str] = mapped_column(
-        ForeignKey("episodes.id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("episodes.id", ondelete="CASCADE"), primary_key=True, index=True
     )
 
 
@@ -164,7 +165,7 @@ class Episode(Base):
     __tablename__ = "episodes"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     episode_no: Mapped[int] = mapped_column(Integer, comment="集号")
     title: Mapped[Optional[str]] = mapped_column(String(256))
     outline: Mapped[Optional[str]] = mapped_column(Text, comment="剧本大纲")
@@ -188,7 +189,7 @@ class Scene(Base):
     __tablename__ = "scenes"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    episode_id: Mapped[str] = mapped_column(ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False)
+    episode_id: Mapped[str] = mapped_column(ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False, index=True)
     scene_no: Mapped[int] = mapped_column(Integer, comment="镜头序号")
     title: Mapped[Optional[str]] = mapped_column(String(256))
     duration: Mapped[Optional[float]] = mapped_column(Float, comment="时长（秒）")
@@ -202,10 +203,10 @@ class Scene(Base):
     characters: Mapped[list["Character"]] = relationship(
         secondary="scene_characters", back_populates="scenes"
     )
-    location_id: Mapped[Optional[str]] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"), comment="关联地点 ID")
+    location_id: Mapped[Optional[str]] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"), index=True, comment="关联地点 ID")
     shot_stage: Mapped[str] = mapped_column(String(32), default="draft", comment="镜头生产阶段：draft/script_parsed/still_generating/still_review/still_locked/video_generating/video_review/video_locked/compose_ready/delivery")
     location: Mapped[Optional["Location"]] = relationship()
-    locked_still_id: Mapped[Optional[str]] = mapped_column(String(32), comment="锁定的静帧候选 ID")
+    locked_still_id: Mapped[Optional[str]] = mapped_column(String(32), index=True, comment="锁定的静帧候选 ID")
     still_candidates: Mapped[list["StillCandidate"]] = relationship(back_populates="scene", cascade="all, delete-orphan")
 
 
@@ -215,7 +216,7 @@ class SceneCharacter(Base):
     __tablename__ = "scene_characters"
 
     scene_id: Mapped[str] = mapped_column(
-        ForeignKey("scenes.id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("scenes.id", ondelete="CASCADE"), primary_key=True, index=True
     )
     character_id: Mapped[str] = mapped_column(
         ForeignKey("characters.id", ondelete="CASCADE"), primary_key=True
@@ -252,7 +253,7 @@ class Asset(Base):
     __tablename__ = "assets"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), index=True)
     type: Mapped[str] = mapped_column(String(64), nullable=False, comment="资产类型")
     uri: Mapped[Optional[str]] = mapped_column(String(512), comment="文件路径或 URL")
     mime_type: Mapped[Optional[str]] = mapped_column(String(64))
@@ -278,10 +279,10 @@ class AssetLink(Base):
     __tablename__ = "asset_links"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
     owner_type: Mapped[str] = mapped_column(String(32), nullable=False,
                                              comment="scene/scene_version/qa_run/episode/publish_job")
-    owner_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="归属对象 ID")
+    owner_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True, comment="归属对象 ID")
     relation_type: Mapped[Optional[str]] = mapped_column(String(32),
                                                           comment="qa_input/qa_evidence/qa_report/cover/final 等")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
@@ -295,11 +296,11 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), index=True)
     job_type: Mapped[str] = mapped_column(String(64), nullable=False,
                                           comment="regenerate_scene/generate_video/mix_audio/export 等")
     target_type: Mapped[Optional[str]] = mapped_column(String(32), comment="scene/episode/asset")
-    target_id: Mapped[Optional[str]] = mapped_column(String(32))
+    target_id: Mapped[Optional[str]] = mapped_column(String(32), index=True)
     worker_type: Mapped[Optional[str]] = mapped_column(String(32), comment="script/visual/audio/qa/edit/publish/ffmpeg")
     status: Mapped[str] = mapped_column(String(32), default="pending",
                                         comment="pending/running/completed/failed/cancelled")
@@ -345,7 +346,7 @@ class QARun(Base):
     gate_code: Mapped[str] = mapped_column(String(16), nullable=False, comment="G1a~G12")
     subject_type: Mapped[str] = mapped_column(String(32), nullable=False,
                                               comment="scene/scene_version/episode/asset")
-    subject_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="被检查对象 ID")
+    subject_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True, comment="被检查对象 ID")
     input_asset_id: Mapped[Optional[str]] = mapped_column(String(32), comment="本次检测输入资产")
     evidence_asset_id: Mapped[Optional[str]] = mapped_column(String(32), comment="主证据资产")
     step_key: Mapped[Optional[str]] = mapped_column(String(64), comment="image_gen/video_gen/mix/export")
@@ -384,7 +385,7 @@ class PublishJob(Base):
     __tablename__ = "publish_jobs"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), index=True)
     episode_id: Mapped[Optional[str]] = mapped_column(ForeignKey("episodes.id", ondelete="SET NULL"))
     platform: Mapped[Optional[str]] = mapped_column(String(32), comment="tiktok/douyin")
     status: Mapped[str] = mapped_column(String(32), default="pending")
@@ -432,7 +433,7 @@ class DeliveryPackage(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
-    episode_id: Mapped[Optional[str]] = mapped_column(ForeignKey("episodes.id", ondelete="SET NULL"))
+    episode_id: Mapped[Optional[str]] = mapped_column(ForeignKey("episodes.id", ondelete="SET NULL"), index=True)
     publish_job_id: Mapped[Optional[str]] = mapped_column(ForeignKey("publish_jobs.id", ondelete="SET NULL"))
     package_no: Mapped[int] = mapped_column(Integer, nullable=False, comment="包序号（同一 episode 自增）")
     status: Mapped[str] = mapped_column(String(32), default="BUILDING",
@@ -478,7 +479,7 @@ class KnowledgeItem(Base):
     __tablename__ = "knowledge_items"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), index=True)
     episode_id: Mapped[Optional[str]] = mapped_column(ForeignKey("episodes.id", ondelete="SET NULL"),
                                                      comment="关联剧集 ID（041b3）")
     publish_job_id: Mapped[Optional[str]] = mapped_column(ForeignKey("publish_jobs.id", ondelete="SET NULL"),
@@ -617,7 +618,7 @@ class Prop(Base):
     __tablename__ = "props"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False, comment="道具名称（如：古玉、照片、钥匙）")
     description: Mapped[Optional[str]] = mapped_column(Text, comment="道具描述")
     category: Mapped[Optional[str]] = mapped_column(String(64), comment="道具类别：weapon/document/electronic/clothing/other")
@@ -651,7 +652,7 @@ class StillCandidate(Base):
     __tablename__ = "still_candidates"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    scene_id: Mapped[str] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), nullable=False, comment="关联镜头 ID")
+    scene_id: Mapped[str] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), nullable=False, index=True, comment="关联镜头 ID")
     version: Mapped[int] = mapped_column(Integer, default=1, comment="候选版本号")
     image_path: Mapped[str] = mapped_column(String(512), comment="静帧图片存储路径")
     thumbnail_path: Mapped[Optional[str]] = mapped_column(String(512), comment="缩略图路径")
@@ -672,7 +673,7 @@ class PromptTemplate(Base):
     __tablename__ = "prompt_templates"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False, comment="模板名称")
     category: Mapped[str] = mapped_column(String(64), default="general", comment="模板类别：character/location/prop/action/style/general")
     template_text: Mapped[Optional[str]] = mapped_column(Text, comment="模板文本，可用 {character_desc} {location_desc} 等占位符")
@@ -692,7 +693,7 @@ class CostRecord(Base):
     __tablename__ = "cost_records"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     scene_id: Mapped[Optional[str]] = mapped_column(ForeignKey("scenes.id", ondelete="SET NULL"), comment="关联镜头 ID")
     scene_version_id: Mapped[Optional[str]] = mapped_column(String(32), comment="关联版本 ID")
     job_id: Mapped[Optional[str]] = mapped_column(String(32), comment="关联 Job ID")
@@ -738,3 +739,19 @@ class ComplexityProfile(Base):
     calculated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     scene: Mapped["Scene"] = relationship()
+
+
+# ─── 0. users (auth) ────────────────────────────────────────────────────────
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    email: Mapped[str] = mapped_column(String(256), unique=True, nullable=False, index=True, comment="登录邮箱")
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False, comment="bcrypt 哈希")
+    display_name: Mapped[Optional[str]] = mapped_column(String(128), comment="显示名称")
+    role: Mapped[str] = mapped_column(String(32), default="admin", comment="角色: admin/operator/viewer")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, comment="最后登录时间")

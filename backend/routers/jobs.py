@@ -1,3 +1,5 @@
+
+logger = logging.getLogger(__name__)
 """Job 路由 — 生产任务管理（增强版）
 
 增强：
@@ -7,18 +9,21 @@
 - 进度时间线 GET /{job_id}/progress
 - 最新进度 GET /{job_id}/latest-progress
 """
+import logging
+
 
 import asyncio
 import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import async_session_factory, get_db
 from database.models import Job, JobStep, Scene
 from services.pipeline.orchestrator import (
+
     cancel_job,
     get_job_with_steps,
     get_job_latest_progress,
@@ -36,22 +41,34 @@ async def list_jobs(
     project_id: str = Query(None),
     status: str = Query(None),
     target_id: str = Query(None),
-    limit: int = Query(50, le=200),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
+    search: str = Query("", description="搜索关键词"),
     db: AsyncSession = Depends(get_db),
 ):
     """获取 Job 列表，支持状态和目标过滤"""
-    q = select(Job).order_by(Job.created_at.desc()).limit(limit)
+    limit = min(limit, 200)
+    q = select(Job)
     if project_id:
         q = q.where(Job.project_id == project_id)
     if status:
         q = q.where(Job.status == status)
     if target_id:
         q = q.where(Job.target_id == target_id)
+    if search:
+        q = q.filter(or_(
+            Job.job_type.ilike(f"%{search}%"),
+            Job.error_message.ilike(f"%{search}%"),
+        ))
+    # count
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar() or 0
+    q = q.order_by(Job.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(q)
     jobs = result.scalars().all()
 
     return {
-        "data": [
+        "items": [
             {
                 "id": j.id,
                 "project_id": j.project_id,
@@ -68,7 +85,10 @@ async def list_jobs(
                 "finished_at": j.finished_at.isoformat() if j.finished_at else None,
             }
             for j in jobs
-        ]
+        ],
+        "total": total,
+        "skip": skip,
+        "limit": limit,
     }
 
 
@@ -100,12 +120,17 @@ async def get_job_latest(job_id: str):
 @router.post("/{job_id}/retry")
 async def retry_job(job_id: str, db: AsyncSession = Depends(get_db)):
     """重跑任务：基于原始 job 的 target 创建新 job + 新 scene_version"""
-    job = await db.get(Job, job_id)
+    result = await db.execute(select(Job).where(Job.id == job_id))
+    job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(404, "Job not found")
 
     if job.target_type != "scene" or not job.target_id:
         raise HTTPException(400, "Only scene jobs can be retried")
+
+    # 状态校验：只有 failed/cancelled 的 job 才能重跑
+    if job.status not in ("failed", "cancelled"):
+        raise HTTPException(409, f"Job status '{job.status}' cannot be retried; only failed or cancelled jobs can be retried")
 
     try:
         new_job = await retry_scene(

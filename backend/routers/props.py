@@ -1,33 +1,40 @@
 """Prop 路由 — 道具与道具状态 CRUD"""
+import logging
+
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_db
 from database.models import Prop, PropState, Project, Scene
 from schemas.prop import PropCreate, PropUpdate, PropRead, PropStateCreate, PropStateUpdate, PropStateRead
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["props"])
 
 
 # ─── Prop CRUD ──────────────────────────────────────────────────────────────
 
-@router.get("/projects/{project_id}/props", response_model=list[PropRead])
+@router.get("/projects/{project_id}/props")
 async def list_props(
     project_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(get_db),
 ):
     """获取项目下的道具列表"""
+    limit = min(limit, 200)
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    result = await db.execute(
-        select(Prop)
-        .where(Prop.project_id == project_id)
-        .order_by(Prop.created_at.desc())
-    )
-    return result.scalars().all()
+    q = select(Prop).where(Prop.project_id == project_id)
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar() or 0
+    q = q.order_by(Prop.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(q)
+    return {"items": result.scalars().all(), "total": total, "skip": skip, "limit": limit}
 
 
 @router.post("/projects/{project_id}/props", response_model=PropRead, status_code=status.HTTP_201_CREATED)
@@ -100,6 +107,7 @@ async def list_prop_states(
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
+    # 分页豁免：列表固定小
     result = await db.execute(
         select(PropState)
         .where(PropState.scene_id == scene_id)

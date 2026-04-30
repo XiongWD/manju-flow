@@ -7,8 +7,8 @@ import GlassChip from "@/components/ui/primitives/GlassChip";
 import GlassInput from "@/components/ui/primitives/GlassInput";
 import GlassField from "@/components/ui/primitives/GlassField";
 import GlassTextarea from "@/components/ui/primitives/GlassTextarea";
-import GlassLoadingBlock from "@/components/ui/primitives/GlassLoadingBlock";
 import GlassEmptyState from "@/components/ui/primitives/GlassEmptyState";
+import { ListSkeleton } from "@/components/Skeleton";
 import {
   apiClient,
   type Project,
@@ -111,7 +111,7 @@ export default function DeliveryPage() {
     (async () => {
       try {
         const data = await apiClient.listProjects();
-        setProjects(data);
+        setProjects(data.items);
       } catch (err) {
         console.error("Failed to load projects", err);
       } finally {
@@ -131,7 +131,7 @@ export default function DeliveryPage() {
     (async () => {
       try {
         const data = await apiClient.listEpisodes({ project_id: selectedProjectId });
-        setEpisodes(data);
+        setEpisodes(data.items);
       } catch (err) {
         console.error("Failed to load episodes", err);
       }
@@ -155,9 +155,9 @@ export default function DeliveryPage() {
       // Scenes
       try {
         const sceneData = await apiClient.listScenes({ episode_id: selectedEpisodeId });
-        setScenes(sceneData);
-        if (sceneData.length > 0) {
-          setSelectedSceneId(sceneData[0].id);
+        setScenes(sceneData.items);
+        if (sceneData.items.length > 0) {
+          setSelectedSceneId(sceneData.items[0].id);
         }
       } catch (err) {
         console.error("Failed to load scenes", err);
@@ -167,7 +167,7 @@ export default function DeliveryPage() {
       setPackagesLoading(true);
       try {
         const pkgData = await apiClient.listDeliveryPackages({ episode_id: selectedEpisodeId });
-        setDeliveryPackages(pkgData);
+        setDeliveryPackages(pkgData.items);
       } catch {
         setDeliveryPackages([]);
       } finally {
@@ -178,7 +178,7 @@ export default function DeliveryPage() {
       setJobsLoading(true);
       try {
         const jobData = await apiClient.listPublishJobs({ project_id: projectId, episode_id: selectedEpisodeId });
-        setPublishJobs(jobData);
+        setPublishJobs(jobData.items);
       } catch {
         setPublishJobs([]);
       } finally {
@@ -307,7 +307,7 @@ export default function DeliveryPage() {
     try {
       await apiClient.createDeliveryPackage({ episode_id: selectedEpisodeId, package_type: packageType });
       const data = await apiClient.listDeliveryPackages({ episode_id: selectedEpisodeId });
-      setDeliveryPackages(data);
+      setDeliveryPackages(data.items);
     } catch (err) {
       console.error("Failed to create package", err);
     }
@@ -329,7 +329,7 @@ export default function DeliveryPage() {
         project_id: selectedProjectId,
         episode_id: selectedEpisodeId || undefined,
       });
-      setPublishJobs(data);
+      setPublishJobs(data.items);
     } catch (err) {
       console.error("Failed to create publish job", err);
     }
@@ -340,7 +340,7 @@ export default function DeliveryPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 p-4 md:p-6 lg:p-8">
-        <GlassLoadingBlock message="正在加载剪辑与交付数据…" />
+        <ListSkeleton count={4} />
       </div>
     );
   }
@@ -351,9 +351,41 @@ export default function DeliveryPage() {
       <div>
         <h1 className="text-2xl font-bold text-zinc-100">剪辑与交付</h1>
         <p className="text-zinc-400 mt-1 text-sm">
-          后期工作台 — 字幕编辑、音频混音、交付打包与发布管理
+          后期工作台 — 在渲染完成并通过质检后，在此进行字幕精编、音频混音调整，然后按剧集/场景生成交付包（剪辑包、审片包、发布包），最终提交到目标平台发布。
         </p>
       </div>
+
+      {/* ── 前置条件 & 流程说明 ────────────────────────────── */}
+      {!selectedProjectId && (
+        <GlassSurface variant="panel" className="!p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-white">📋 交付流程说明</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+            <div className="bg-zinc-800/40 rounded-lg p-3">
+              <div className="font-semibold text-zinc-300 mb-1">1️⃣ 选择项目与剧集</div>
+              <p className="text-zinc-500 leading-relaxed">在上方选择已渲染完成并通过质检的项目和剧集。如果列表为空，请先在「故事」和「资产」页面完成创作与渲染。</p>
+            </div>
+            <div className="bg-zinc-800/40 rounded-lg p-3">
+              <div className="font-semibold text-zinc-300 mb-1">2️⃣ 字幕精编 & 音频混音</div>
+              <p className="text-zinc-500 leading-relaxed">逐场景编辑字幕时间轴和文案，调整人声/BGM 音量与淡入淡出。每条字幕可内联编辑，音频参数实时预览。</p>
+            </div>
+            <div className="bg-zinc-800/40 rounded-lg p-3">
+              <div className="font-semibold text-zinc-300 mb-1">3️⃣ 生成交付包</div>
+              <p className="text-zinc-500 leading-relaxed">
+                <span className="text-zinc-300">剪辑包 (video)</span>：含视频+字幕的剪辑成品；
+                <span className="text-zinc-300">审片包 (bundle)</span>：完整素材供审阅；
+                <span className="text-zinc-300">字幕/音频</span>：独立导出。
+              </p>
+            </div>
+            <div className="bg-zinc-800/40 rounded-lg p-3">
+              <div className="font-semibold text-zinc-300 mb-1">4️⃣ 发布到平台</div>
+              <p className="text-zinc-500 leading-relaxed">基于已生成的交付包创建发布任务，指定目标平台（B站、YouTube、抖音等）。当前为任务管理入口，实际平台对接需后端集成。</p>
+            </div>
+          </div>
+          <p className="text-xs text-zinc-600">
+            前置条件：项目已有至少一个剧集 → 剧集下的场景已完成渲染 → 渲染结果通过质检 (QA 页面)。如缺少数据，请先完成上游工作流。
+          </p>
+        </GlassSurface>
+      )}
 
       {/* ── Selector bar ───────────────────────────────────── */}
       <GlassSurface variant="panel" density="compact">
@@ -434,7 +466,10 @@ export default function DeliveryPage() {
           {/* ── Left: Subtitle Editor ─────────────────────── */}
           <GlassSurface variant="panel">
             <div className="flex items-center justify-between mb-4">
+                  <div>
               <h2 className="text-lg font-semibold text-zinc-100">字幕编辑</h2>
+              <p className="text-xs text-zinc-500 mt-0.5">对当前场景版本的字幕进行逐条编辑。点击字幕文案可内联修改，修改后点击「保存字幕」提交。字幕数据来源于渲染流程自动生成的 SRT。</p>
+            </div>
               <GlassButton
                 variant="primary"
                 size="sm"
@@ -504,7 +539,10 @@ export default function DeliveryPage() {
           {/* ── Right: Audio Mix Editor ───────────────────── */}
           <GlassSurface variant="panel">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-zinc-100">音频混音</h2>
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-100">音频混音</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">调整人声与背景音乐的音量平衡和淡入淡出参数。数值范围 0.0~2.0，1.0 为原始音量。修改后点击「保存混音」提交。</p>
+              </div>
               <GlassButton
                 variant="primary"
                 size="sm"
@@ -610,7 +648,7 @@ export default function DeliveryPage() {
           <div>
             <h2 className="text-lg font-semibold text-zinc-100">交付包</h2>
             <p className="text-xs text-zinc-500 mt-0.5">
-              为当前剧集生成视频、音频、字幕或完整打包
+              按剧集维度生成不同用途的交付包：<strong className="text-zinc-400">视频</strong>（剪辑成品，含画面+字幕）、<strong className="text-zinc-400">音频</strong>（独立音轨）、<strong className="text-zinc-400">字幕</strong>（SRT 文件）、<strong className="text-zinc-400">完整包</strong>（视频+音频+字幕+元数据，用于审片或归档）。生成过程异步执行，状态可在此跟踪。
             </p>
           </div>
           {selectedEpisodeId && (
@@ -634,7 +672,10 @@ export default function DeliveryPage() {
         ) : packagesLoading ? (
           <p className="text-zinc-500 text-sm py-4 text-center">加载中…</p>
         ) : deliveryPackages.length === 0 ? (
-          <p className="text-zinc-500 text-sm py-4 text-center">暂无交付包</p>
+          <div className="text-center py-6">
+            <p className="text-zinc-500 text-sm">暂无交付包。点击上方按钮为当前剧集生成第一个交付包。</p>
+            <p className="text-zinc-600 text-xs mt-1">提示：确保该剧集下的场景已完成渲染并通过质检，否则生成的包可能不完整。</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -694,7 +735,7 @@ export default function DeliveryPage() {
           <div>
             <h2 className="text-lg font-semibold text-zinc-100">发布任务</h2>
             <p className="text-xs text-zinc-500 mt-0.5">
-              管理向各平台的发布任务
+              基于已生成的交付包，创建向各平台的发布任务。当前为任务记录与管理入口，实际平台上传对接依赖后端集成（B站、YouTube、抖音等 API）。
             </p>
           </div>
           {selectedProjectId && (

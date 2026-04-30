@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Search, Plus, FolderKanban, MoreVertical, Pencil, Trash2 } from 'lucide-react'
-import { GlassSurface, GlassButton, GlassInput, GlassModalShell, GlassLoadingBlock, GlassToastContainer } from '@/components/ui/primitives'
+import { GlassSurface, GlassButton, GlassInput, GlassModalShell, GlassToastContainer } from '@/components/ui/primitives'
+import { ListSkeleton } from '@/components/Skeleton'
 import { PageHeader } from '@/components/workspace/PageHeader'
 import { apiClient } from '@/lib/api-client'
 import type { Project, ProjectStatus } from '@/types'
@@ -98,7 +99,7 @@ export default function ProjectsPage() {
     try {
       setLoading(true)
       const data = await apiClient.listProjects()
-      setProjects(data.map((p) => ({ ...p, market: normalizeRegion(p.market) })))
+      setProjects(data.items.map((p) => ({ ...p, market: normalizeRegion(p.market) })))
     } catch (error) {
       console.error('Failed to fetch projects:', error)
       setMessage({ type: 'error', text: '加载项目失败' })
@@ -239,7 +240,7 @@ export default function ProjectsPage() {
 
       {/* Content */}
       {loading ? (
-        <GlassLoadingBlock message="正在加载项目列表…" />
+        <ListSkeleton count={6} />
       ) : filtered.length === 0 ? (
         <GlassSurface variant="panel" className="py-16 text-center">
           <div className="mx-auto max-w-md space-y-2">

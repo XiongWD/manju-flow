@@ -560,8 +560,8 @@ export default function ShotEditorPage() {
   const loadEpisodes = useCallback(async () => {
     try {
       const eps = await apiClient.listEpisodes({ project_id: projectId })
-      setEpisodes(eps)
-      if (eps.length > 0 && !selectedEpId) setSelectedEpId(eps[0].id)
+      setEpisodes(eps.items)
+      if (eps.items.length > 0 && !selectedEpId) setSelectedEpId(eps.items[0].id)
     } catch { /* empty */ }
   }, [projectId, selectedEpId])
 
@@ -569,7 +569,7 @@ export default function ShotEditorPage() {
     setLoading(true)
     try {
       const list = await apiClient.listScenes({ episode_id: epId })
-      setScenes(list.sort((a, b) => a.scene_no - b.scene_no))
+      setScenes(list.items.sort((a, b) => a.scene_no - b.scene_no))
       setSelectedIds(new Set())
     } catch { setScenes([]) }
     setLoading(false)
@@ -694,7 +694,7 @@ export default function ShotEditorPage() {
     setLoadingTree(false)
     try {
       const assets = await apiClient.listAssets({ owner_type: "scene_version", owner_id: scene.latest_version?.id ?? scene.id, limit: 20 })
-      setSceneAssets(assets)
+      setSceneAssets(assets.items)
     } catch { setSceneAssets([]) }
     setLoadingAssets(false)
     // load still candidates
@@ -968,14 +968,28 @@ export default function ShotEditorPage() {
               <GlassButton
                 variant="primary"
                 size="sm"
-                disabled={!selectedEpId}
-                onClick={() => setShowCreate(true)}
+                onClick={async () => {
+                  if (!selectedEpId) {
+                    // Auto-create a default episode when none exist
+                    try {
+                      const ep = await apiClient.createEpisode({
+                        project_id: projectId,
+                        episode_no: 1,
+                        title: "第 1 集",
+                      })
+                      setEpisodes([ep])
+                      setSelectedEpId(ep.id)
+                      showToast("已自动创建第 1 集")
+                    } catch {
+                      showToast("创建剧集失败，请重试", "error")
+                      return
+                    }
+                  }
+                  setShowCreate(true)
+                }}
               >
                 + 添加分镜
               </GlassButton>
-              {!selectedEpId && episodes.length === 0 && (
-                <span className="text-xs text-zinc-500">请先创建剧集</span>
-              )}
             </div>
           </div>
         </div>
@@ -1051,13 +1065,26 @@ export default function ShotEditorPage() {
       {!loading && episodes.length === 0 && (
         <GlassEmptyState
           title="该项目暂无剧集"
-          description="请先创建剧集，再进入分镜编辑器继续管理场景与版本。"
+          description="点击下方按钮自动创建第一集，然后开始添加分镜。"
           actions={
             <GlassButton
-              variant="secondary"
-              onClick={() => router.push(`/workspace/projects/${projectId}`)}
+              variant="primary"
+              onClick={async () => {
+                try {
+                  const ep = await apiClient.createEpisode({
+                    project_id: projectId,
+                    episode_no: 1,
+                    title: "第 1 集",
+                  })
+                  setEpisodes([ep])
+                  setSelectedEpId(ep.id)
+                  showToast("已自动创建第 1 集")
+                } catch {
+                  showToast("创建剧集失败，请重试", "error")
+                }
+              }}
             >
-              返回项目管理
+              + 创建第 1 集
             </GlassButton>
           }
         />

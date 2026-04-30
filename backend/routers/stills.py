@@ -1,4 +1,8 @@
+
+logger = logging.getLogger(__name__)
 """静帧候选路由 — 状态机 + 视频生成阻断"""
+import logging
+
 
 from datetime import datetime
 from typing import Optional
@@ -10,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.connection import get_db
 from database.models import Scene, StillCandidate
 from schemas.still import (
+
     StillCandidateCreate,
     StillCandidateUpdate,
     StillCandidateResponse,
@@ -94,7 +99,9 @@ async def list_still_candidates(
     scene_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """获取镜头的静帧候选列表"""
+    """获取镜头的静帧候选列表
+    # 分页豁免：列表固定小
+    """
     scene = await db.get(Scene, scene_id)
     if not scene:
         raise HTTPException(404, f"Scene {scene_id} not found")

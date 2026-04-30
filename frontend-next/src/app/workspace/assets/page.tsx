@@ -8,7 +8,9 @@ import GlassInput from "@/components/ui/primitives/GlassInput";
 import GlassButton from "@/components/ui/primitives/GlassButton";
 import GlassChip from "@/components/ui/primitives/GlassChip";
 import GlassField from "@/components/ui/primitives/GlassField";
+import { ListSkeleton } from "@/components/Skeleton";
 import { PageHeader } from "@/components/workspace/PageHeader";
+import { VirtualList } from "@/components/VirtualList";
 import {
   apiClient,
   type Asset,
@@ -146,11 +148,11 @@ function AssetHubContent() {
     try {
       setCascadeLoading(true);
       const data = await apiClient.listEpisodes({ project_id: urlProjectId });
-      setEpisodes(data);
+      setEpisodes(data.items);
       // Auto-select first episode if none selected
-      if (data.length > 0 && !selectedEpisodeId) {
-        setSelectedEpisodeId(data[0].id);
-      } else if (data.length === 0) {
+      if (data.items.length > 0 && !selectedEpisodeId) {
+        setSelectedEpisodeId(data.items[0].id);
+      } else if (data.items.length === 0) {
         setSelectedEpisodeId(null);
       }
     } catch (e) {
@@ -172,10 +174,10 @@ function AssetHubContent() {
       const data = await apiClient.listScenes({
         episode_id: selectedEpisodeId,
       });
-      setScenes(data);
-      if (data.length > 0 && !selectedSceneId) {
-        setSelectedSceneId(data[0].id);
-      } else if (data.length === 0) {
+      setScenes(data.items);
+      if (data.items.length > 0 && !selectedSceneId) {
+        setSelectedSceneId(data.items[0].id);
+      } else if (data.items.length === 0) {
         setSelectedSceneId(null);
       }
     } catch (e) {
@@ -231,7 +233,7 @@ function AssetHubContent() {
         }
       }
       const data = await apiClient.listAssets(params);
-      setAssets(data);
+      setAssets(data.items);
     } catch (error) {
       console.error("加载资产失败:", error);
     } finally {
@@ -293,6 +295,18 @@ function AssetHubContent() {
     }
   };
 
+  // Build the backend serve URL for an asset (proxies through Next.js → backend → MinIO)
+  const getAssetServeUrl = useCallback((assetId: string) => {
+    const base = typeof window !== "undefined" ? "/api" : "http://localhost:8000/api";
+    return `${base}/files/serve/${assetId}`;
+  }, []);
+
+  // Check if an asset URI is a non-resolvable mock/placeholder
+  const isMockUri = useCallback((uri?: string | null) => {
+    if (!uri) return true;
+    return uri.startsWith("mock://") || uri.startsWith("file://");
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && previewAsset && inferAssetType(previewAsset.mime_type, (previewAsset.metadata_json?.original_filename as string) || previewUrl || "", previewAsset.type) === "image") {
@@ -315,15 +329,25 @@ function AssetHubContent() {
         setPreviewLoading(true);
         setPreviewError(null);
         setPreviewText(null);
-        const preview = await apiClient.getAssetPreview(previewAsset.id);
-        setPreviewUrl(preview.url);
+
+        // For mock/placeholder assets, show clear error
+        if (isMockUri(previewAsset.uri) && !previewAsset.metadata_json?.object_name) {
+          setPreviewError("该资产为模拟数据，无实际文件可供预览");
+          setPreviewLoading(false);
+          return;
+        }
+
+        // Use the backend serve endpoint for reliable file access
+        const serveUrl = getAssetServeUrl(previewAsset.id);
+        setPreviewUrl(serveUrl);
+
         const previewKind = inferAssetType(
           previewAsset.mime_type,
-          (previewAsset.metadata_json?.original_filename as string) || preview.url,
+          (previewAsset.metadata_json?.original_filename as string) || serveUrl,
           previewAsset.type
         );
         if (previewKind === "document") {
-          const text = await fetch(preview.url).then((r) => {
+          const text = await fetch(serveUrl).then((r) => {
             if (!r.ok) throw new Error(`文本预览失败: ${r.status}`);
             return r.text();
           });
@@ -337,7 +361,7 @@ function AssetHubContent() {
       }
     };
     void loadPreview();
-  }, [previewAsset]);
+  }, [previewAsset, isMockUri, getAssetServeUrl]);
 
   const handleUpload = async () => {
     if (!selectedFile) {
@@ -347,6 +371,9 @@ function AssetHubContent() {
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("asset_type", inferAssetType(selectedFile.type));
+    if (urlProjectId) {
+      formData.append("project_id", urlProjectId);
+    }
     try {
       setUploading(true);
       const result: UploadResponse = await apiClient.uploadFile(formData);
@@ -825,88 +852,106 @@ function AssetHubContent() {
         </div>
 
         {loading ? (
-          <p className="text-zinc-400">加载中...</p>
+          <ListSkeleton count={5} />
         ) : assets.length === 0 ? (
           <p className="text-zinc-400">暂无资产</p>
         ) : filteredAssets.length === 0 ? (
           <p className="text-zinc-400">无匹配结果</p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredAssets.map((asset) => (
-              <GlassSurface key={asset.id} variant="elevated" padded>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className="rounded px-2 py-1 text-xs font-medium"
-                      style={{
-                        backgroundColor: `${getAssetTypeColor(asset.type)}20`,
-                        color: getAssetTypeColor(asset.type),
-                      }}
-                    >
-                      {getAssetTypeLabel(asset.type)}
-                    </span>
-                    <span className="text-xs text-zinc-500">
-                      {formatFileSize(asset.file_size)}
-                    </span>
-                  </div>
+          <div className="h-[600px]">
+            <VirtualList
+              items={filteredAssets}
+              estimateSize={180}
+              className="h-full"
+              renderItem={(asset) => (
+                <div className="pb-4">
+                  <GlassSurface variant="elevated" padded>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span
+                          className="rounded px-2 py-1 text-xs font-medium"
+                          style={{
+                            backgroundColor: `${getAssetTypeColor(asset.type)}20`,
+                            color: getAssetTypeColor(asset.type),
+                          }}
+                        >
+                          {getAssetTypeLabel(asset.type)}
+                        </span>
+                        <span className="text-xs text-zinc-500">
+                          {formatFileSize(asset.file_size)}
+                        </span>
+                      </div>
 
-                  <div>
-                    <p className="truncate text-sm font-medium text-zinc-100">
-                      {(asset.metadata_json?.original_filename as string) ||
-                        asset.id}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500">ID: {asset.id}</p>
-                    {typeof asset.metadata_json?.step === "string" && (
-                      <p className="mt-1 text-xs text-zinc-600">
-                        步骤: {asset.metadata_json.step}
+                      <div>
+                        <p className="truncate text-sm font-medium text-zinc-100">
+                          {(asset.metadata_json?.original_filename as string) ||
+                            asset.id}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">ID: {asset.id}</p>
+                        {typeof asset.metadata_json?.step === "string" && (
+                          <p className="mt-1 text-xs text-zinc-600">
+                            步骤: {asset.metadata_json.step}
+                          </p>
+                        )}
+                      </div>
+
+                      {asset.mime_type ? (
+                        <p className="truncate text-xs text-zinc-500">
+                          {asset.mime_type}
+                        </p>
+                      ) : null}
+
+                      <div className="flex items-center gap-2">
+                        {asset.metadata_json?.object_name ? (
+                          <a
+                            href={getAssetServeUrl(asset.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block text-xs text-violet-400 hover:underline"
+                          >
+                            打开资源
+                          </a>
+                        ) : isMockUri(asset.uri) ? (
+                          <span className="text-xs text-zinc-600">模拟数据，无文件</span>
+                        ) : asset.uri ? (
+                          <a
+                            href={asset.uri}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block text-xs text-violet-400 hover:underline"
+                          >
+                            打开资源
+                          </a>
+                        ) : (
+                          <span className="text-xs text-zinc-600">无可访问链接</span>
+                        )}
+                        <button
+                          onClick={() => {
+                            setPreviewAsset(asset);
+                            setPreviewUrl(null);
+                            setPreviewText(null);
+                            setPreviewError(null);
+                            setImagePreviewMode("fit");
+                            setImageZoom(100);
+                            setImageOffset({ x: 0, y: 0 });
+                            setDraggingImage(false);
+                            setDragStart(null);
+                            setVideoMeta({});
+                          }}
+                          className="rounded-md bg-zinc-700 px-3 py-1 text-xs font-medium text-zinc-200 hover:bg-zinc-600"
+                        >
+                          预览
+                        </button>
+                      </div>
+
+                      <p className="text-xs text-zinc-600">
+                        {new Date(asset.created_at).toLocaleString("zh-CN")}
                       </p>
-                    )}
-                  </div>
-
-                  {asset.mime_type ? (
-                    <p className="truncate text-xs text-zinc-500">
-                      {asset.mime_type}
-                    </p>
-                  ) : null}
-
-                  <div className="flex items-center gap-2">
-                    {asset.uri ? (
-                      <a
-                        href={asset.uri}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block text-xs text-violet-400 hover:underline"
-                      >
-                        打开资源
-                      </a>
-                    ) : (
-                      <span className="text-xs text-zinc-600">无可访问链接</span>
-                    )}
-                    <button
-                      onClick={() => {
-                        setPreviewAsset(asset);
-                        setPreviewUrl(null);
-                        setPreviewText(null);
-                        setPreviewError(null);
-                        setImagePreviewMode("fit");
-                        setImageZoom(100);
-                        setImageOffset({ x: 0, y: 0 });
-                        setDraggingImage(false);
-                        setDragStart(null);
-                        setVideoMeta({});
-                      }}
-                      className="rounded-md bg-zinc-700 px-3 py-1 text-xs font-medium text-zinc-200 hover:bg-zinc-600"
-                    >
-                      预览
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-zinc-600">
-                    {new Date(asset.created_at).toLocaleString("zh-CN")}
-                  </p>
+                    </div>
+                  </GlassSurface>
                 </div>
-              </GlassSurface>
-            ))}
+              )}
+            />
           </div>
         )}
       </GlassSurface>

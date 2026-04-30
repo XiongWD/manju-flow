@@ -30,10 +30,13 @@ npm run dev    # http://localhost:3000
 | 后端 | FastAPI + SQLAlchemy async + SQLite / PostgreSQL |
 | 前端 | Next.js 16 + React 19 + TypeScript (strict) |
 | UI | Tailwind CSS 4 + Glass 设计语言 |
-| 迁移 | Alembic（6 个 migration 文件） |
-| 实时 | WebSocket 进度推送 |
+| 迁移 | Alembic（8 个 migration 文件） |
+| 认证 | JWT（python-jose + passlib/bcrypt）+ 可选中间件保护 |
+| 缓存 | 后端内存 TTLCache + 前端 SWR 缓存 |
+| 实时 | WebSocket 频道广播 + BroadcastChannel 多标签同步 |
 | 存储 | MinIO (S3) / 本地 fallback — StorageService 统一入口 |
 | 视频 | FFmpeg + ffprobe 硬指标 QA |
+| 虚拟滚动 | @tanstack/react-virtual |
 | Agent | OpenClaw 多 Agent 编排 |
 
 ---
@@ -59,10 +62,11 @@ PromptTemplate  StillCandidate ← 静帧审核闭环
 
 ## 后端
 
-### 数据模型（33 张表）
+### 数据模型（34 张表）
 
 | 模块 | 模型 |
 |------|------|
+| 认证 | User |
 | 项目 | Project, ProjectConfig |
 | 剧本 | StoryBible, Episode |
 | 镜头 | Scene(Shot), SceneCharacter, SceneVersion |
@@ -80,10 +84,11 @@ PromptTemplate  StillCandidate ← 静帧审核闭环
 | 成本 | CostRecord |
 | 其他 | AnalyticsSnapshot, KnowledgeItem, ApiKey |
 
-### API（138 端点 / 22 个路由模块）
+### API（140+ 端点 / 23 个路由模块）
 
 | 路由 | 说明 |
 |------|------|
+| `/api/auth` | 注册/登录/刷新/用户信息/登出 |
 | `/api/projects` | 项目 CRUD |
 | `/api/episodes` | 剧集 CRUD |
 | `/api/scenes` | 镜头 + SceneVersion |
@@ -109,10 +114,13 @@ PromptTemplate  StillCandidate ← 静帧审核闭环
 | `/api/projects/{id}/costs/summary` | 成本追踪 |
 | `/api/scenes/{id}/propagate-status` | 状态传播 |
 
-### 服务层（7 个核心服务）
+### 服务层（10+ 个核心服务）
 
 | 服务 | 说明 |
 |------|------|
+| AuthService | JWT 签发/验证 + 密码哈希 + get_current_user 依赖 |
+| BroadcastService | WebSocket 频道级广播（按 project 粒度） |
+| TTLCache | 线程安全内存缓存 + @cached 装饰器 |
 | StorageService | 统一存储（MinIO + local fallback） |
 | ScriptParser | 剧本规则解析器（正则，不接 LLM） |
 | PromptBuilder | Prompt 拼接 + 来源追踪 |
@@ -187,11 +195,17 @@ manju/
 ├── backend/
 │   ├── main.py                          # FastAPI 入口
 │   ├── requirements.txt
-│   ├── alembic/versions/                # 6 个 migration
-│   ├── database/models.py               # 33 个 ORM 模型
-│   ├── routers/ (22 个)                 # API 路由
-│   ├── schemas/ (17 个)                 # Pydantic schemas
+│   ├── config.py                       # 集中环境变量管理
+│   ├── alembic/versions/                # 8 个 migration
+│   ├── database/models.py               # 34 个 ORM 模型
+│   ├── middleware/auth.py               # 可选鉴权中间件
+│   ├── routers/ (23 个)                 # API 路由
+│   ├── schemas/ (18 个)                 # Pydantic schemas（含 auth）
 │   └── services/
+│       ├── auth.py                      # JWT + 密码哈希
+│       ├── broadcast.py                 # WebSocket 广播
+│       ├── cache.py                     # 内存 TTL 缓存
+│       ├── cache_decorator.py           # @cached 装饰器
 │       ├── storage/service.py           # StorageService
 │       ├── script_parser.py             # 剧本解析
 │       ├── prompt_builder.py            # Prompt 构建
@@ -200,7 +214,10 @@ manju/
 │       ├── cost_tracker.py              # 成本追踪
 │       ├── status_propagation.py        # 状态传播
 │       └── pipeline/
-│           ├── orchestrator.py          # 流水线编排
+│           ├── orchestrator.py          # 流水线编排（260 行）
+│           ├── steps.py                  # Pipeline step 实现
+│           ├── state.py                  # 状态管理
+│           ├── config.py                 # Pipeline 配置
 │           ├── runner.py                # 后台任务执行
 │           ├── video.py                 # 视频生成
 │           ├── audio.py                 # 音频处理
@@ -219,8 +236,14 @@ manju/
 │   │   ├── app/workspace/               # 16 个页面
 │   │   ├── components/
 │   │   │   ├── ui/primitives/           # Glass 组件库
-│   │   │   └── workspace/               # 业务组件
-│   │   ├── lib/api-client.ts            # API 客户端
+│   │   │   ├── workspace/               # 业务组件
+│   │   │   ├── VirtualList.tsx          # 虚拟滚动
+│   │   │   ├── Skeleton.tsx             # 骨架屏
+│   │   │   ├── Toast.tsx                # Toast 提示
+│   │   │   └── ErrorBoundary.tsx        # 错误边界
+│   │   ├── hooks/useTabSync.ts          # 多标签同步 hook
+│   │   ├── lib/api-client.ts            # API 客户端（含 token/缓存/SWR）
+│   │   ├── lib/broadcast.ts             # BroadcastChannel 多标签同步
 │   │   └── types/index.ts
 │   └── package.json
 └── docs/
@@ -235,7 +258,16 @@ manju/
 | `DATABASE_URL` | 数据库连接 | `sqlite+aiosqlite:///./manju.db` |
 | `DB_AUTO_CREATE` | 启动时自动建表 | `true` (dev) |
 | `ENVIRONMENT` | 运行环境 | `development` |
-| `CORS_ORIGINS` | CORS 白名单 | `*` |
+| `CORS_ORIGINS` | CORS 白名单 | `http://localhost:3000` |
+| `JWT_SECRET` | JWT 签名密钥 | `manju-dev-secret-change-in-production` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access Token 有效期 | `60` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh Token 有效期 | `7` |
+| `MANJU_ADMIN_EMAIL` | 初始管理员邮箱 | — |
+| `MANJU_ADMIN_PASSWORD` | 初始管理员密码 | — |
+| `AUTH_PROTECTED_PREFIXES` | 鉴权保护路径（逗号分隔，空=不保护） | 主要业务路由 |
+| `CACHE_TTL_SECONDS` | 缓存 TTL | `300` |
+| `MAX_UPLOAD_BYTES` | 上传大小限制 | `104857600` (100MB) |
+| `LOG_LEVEL` | 日志级别 | `INFO` |
 | `NEXT_PUBLIC_API_BASE_URL` | 前端 API 地址 | `/api` |
 | `MINIO_ENDPOINT` | MinIO 地址 | — |
 | `MINIO_ACCESS_KEY` | MinIO AK | — |
@@ -245,12 +277,14 @@ manju/
 
 ## 已知限制 & 后续计划
 
-- 🔜 生产认证/鉴权（当前 API 无 auth）
 - 🔜 真实 Provider API 字段验证（Kling/Seedance contract test）
 - 🔜 MinIO 生产环境接入
-- 🔜 前端 Error Boundary
 - 🔜 自动化测试覆盖
-- 🔜 orchestrator.py 拆分（1356 行，mock/real 混合）
+- 🔜 Redis 缓存（当前内存缓存，Redis 作为可选升级）
+- 🔜 Token 黑名单（logout 当前为 stub）
+- 🔜 前端登录页面 UI
+- 🔜 多列网格虚拟滚动（当前 assets 页为单列）
+- 🔜 pipeline config 迁移到集中配置模块
 
 ---
 
