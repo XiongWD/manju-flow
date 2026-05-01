@@ -51,6 +51,7 @@ function AssetHubContent() {
       const p = page ?? currentPage;
       const params: Parameters<typeof apiClient.listAssets>[0] = { limit: pageSize, skip: (p - 1) * pageSize };
       if (urlProjectId) params.project_id = urlProjectId;
+      if (searchQuery.trim()) params.search = searchQuery.trim();
       if (selectedVersionId) {
         params.owner_type = "scene_version";
         params.owner_id = selectedVersionId;
@@ -63,12 +64,12 @@ function AssetHubContent() {
       setTotalAssets(data.total);
     } catch (error) { console.error("加载资产失败:", error); }
     finally { setLoading(false); }
-  }, [urlProjectId, selectedVersionId, ownerTypeFilter, ownerIdInput, currentPage, pageSize]);
+  }, [urlProjectId, searchQuery, selectedVersionId, ownerTypeFilter, ownerIdInput, currentPage, pageSize]);
 
   useEffect(() => { void loadAssets(); }, [loadAssets]);
 
   // Reset to page 1 when filters change
-  useEffect(() => { setCurrentPage(1); }, [urlProjectId, selectedVersionId, ownerTypeFilter]);
+  useEffect(() => { setCurrentPage(1); }, [urlProjectId, selectedVersionId, ownerTypeFilter, searchQuery]);
 
   // ── Preview URL loading (for fullscreen image detection) ──
   useEffect(() => {

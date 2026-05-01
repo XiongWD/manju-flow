@@ -13,3 +13,5 @@ backend/manju.db
 backend/.local/
 .claude/
 .gitnexus/
+logs/
+.vscode/

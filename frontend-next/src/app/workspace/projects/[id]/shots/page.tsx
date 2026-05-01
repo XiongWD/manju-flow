@@ -917,7 +917,7 @@ export default function ShotEditorPage() {
 
       <div className="mb-6">
         <button
-          onClick={() => router.push('/workspace/shots')}
+          onClick={() => router.push('/workspace/projects')}
           className="mb-3 inline-block text-sm text-zinc-400 transition-colors hover:text-zinc-200"
         >
           ← 返回项目列表

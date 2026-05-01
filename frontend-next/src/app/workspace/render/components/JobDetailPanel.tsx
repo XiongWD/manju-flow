@@ -107,7 +107,7 @@ export function JobDetailPanel({ job, retrying, cancelling, onRetry, onCancel, o
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-white">{STEP_LABELS[step.step_name] || step.step_name}</span>
+                  <span className="text-xs font-medium text-white">{STEP_LABELS[step.step_key] || step.step_key || step.tool_name || step.id.slice(0, 8)}</span>
                   <span className="text-[10px]" style={{ color: sc.color }}>{sc.label}</span>
                   {step.error_message && (
                     <span className="text-[10px] text-red-400/70 truncate max-w-[200px]" title={step.error_message}>

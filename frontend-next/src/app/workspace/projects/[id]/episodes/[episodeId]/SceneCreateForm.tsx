@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { GlassSurface, GlassButton, GlassInput } from "@/components/ui/primitives";
 import { apiClient } from "@/lib/api-client";
 
@@ -9,6 +10,7 @@ interface SceneCreateFormProps {
 }
 
 export function SceneCreateForm({ episodeId }: SceneCreateFormProps) {
+  const router = useRouter();
   const [sceneNo, setSceneNo] = useState<number>(1);
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,9 +35,9 @@ export function SceneCreateForm({ episodeId }: SceneCreateFormProps) {
       setSceneNo(sceneNo + 1);
       setTitle("");
 
-      // 延迟刷新页面，让用户看到成功消息
+      // 使用 router.refresh() 重新获取服务端数据，避免整页刷新
       setTimeout(() => {
-        window.location.reload();
+        router.refresh();
       }, 1000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "创建场景失败");

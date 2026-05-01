@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/workspace/Sidebar';
+import { apiClient, UserRead } from '@/lib/api-client';
 
 export default function WorkspaceLayout({
   children,
@@ -12,7 +13,9 @@ export default function WorkspaceLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [user, setUser] = useState<UserRead | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -20,6 +23,13 @@ export default function WorkspaceLayout({
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
+
+  // 加载当前用户信息，未登录则跳转到登录页
+  useEffect(() => {
+    apiClient.getMe().then(setUser).catch(() => {
+      router.replace('/login');
+    });
+  }, [router]);
 
   // 关闭 mobile menu 当路由变化
   useEffect(() => {
@@ -73,9 +83,23 @@ export default function WorkspaceLayout({
             <h1 className="text-lg font-semibold text-zinc-100">创作工作区</h1>
           </div>
           <div className="flex items-center gap-4">
+            {user && (
+              <span className="hidden sm:block text-sm text-zinc-400 max-w-[160px] truncate" title={user.email}>
+                {user.display_name ?? user.email}
+              </span>
+            )}
             <div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center">
-              <span className="text-sm text-zinc-400">U</span>
+              <span className="text-sm text-zinc-400">
+                {user ? (user.display_name ?? user.email).charAt(0).toUpperCase() : 'U'}
+              </span>
             </div>
+            <button
+              onClick={() => { apiClient.logout(); router.replace('/login'); }}
+              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+              title="退出登录"
+            >
+              退出
+            </button>
           </div>
         </header>
 

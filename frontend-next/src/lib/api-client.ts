@@ -439,12 +439,13 @@ export interface AssetLink {
 export interface JobStep {
   id: string;
   job_id: string;
-  step_order: number;
-  step_name: string;
+  /** 后端字段为 step_key，对应 step_order 不存在 */
+  step_key: string;
+  tool_name?: string | null;
   status: string;
-  started_at: string | null;
   finished_at: string | null;
-  output_data: string | null;
+  input_json?: unknown | null;
+  output_json?: unknown | null;
   error_message: string | null;
 }
 
@@ -660,6 +661,32 @@ export interface UserRead {
   created_at: string;
   updated_at: string;
   last_login_at?: string;
+}
+
+// ── Analytics types ─────────────────────────────────────────
+
+export interface AnalyticsSnapshot {
+  id: string;
+  project_id?: string | null;
+  episode_id?: string | null;
+  publish_job_id?: string | null;
+  platform?: string | null;
+  external_post_id?: string | null;
+  views?: number | null;
+  completion_rate?: number | null;
+  likes?: number | null;
+  comments?: number | null;
+  shares?: number | null;
+  watch_time?: number | null;
+  source?: string | null;
+  snapshot_at: string;
+  created_at: string;
+}
+
+export interface EpisodeAnalyticsSummary {
+  episode_id: string;
+  latest_snapshot?: AnalyticsSnapshot | null;
+  aggregation: Record<string, unknown>;
 }
 
 // ── API Client ──────────────────────────────────────────────
@@ -1451,6 +1478,26 @@ class ApiClient {
 
   async getLockedStill(sceneId: string): Promise<StillCandidate> {
     return this.get<StillCandidate>(`scenes/${sceneId}/locked-still`);
+  }
+
+  // ── Analytics ────────────────────────────────────────────
+
+  async getEpisodeAnalytics(episodeId: string): Promise<EpisodeAnalyticsSummary> {
+    return this.get<EpisodeAnalyticsSummary>(`analytics/episodes/${episodeId}`);
+  }
+
+  async listAnalyticsSnapshots(params: {
+    episode_id?: string;
+    platform?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<AnalyticsSnapshot>> {
+    const query = new URLSearchParams();
+    if (params.episode_id) query.set('episode_id', params.episode_id);
+    if (params.platform) query.set('platform', params.platform);
+    if (params.page) query.set('page', String(params.page));
+    if (params.page_size) query.set('page_size', String(params.page_size));
+    return this.get<PaginatedResponse<AnalyticsSnapshot>>(`analytics/snapshots?${query.toString()}`);
   }
 }
 
