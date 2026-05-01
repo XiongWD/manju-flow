@@ -24,7 +24,7 @@ async def propagate_from_scene(
     db: AsyncSession = Depends(get_db),
 ):
     """手动触发从 Scene 向上的状态传播"""
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(404, f"Scene {scene_id} not found")
 
@@ -42,7 +42,7 @@ async def propagate_from_episode(
     db: AsyncSession = Depends(get_db),
 ):
     """手动触发从 Episode 向上的状态传播"""
-    episode = await db.get(Episode, episode_id)
+    episode = await get_or_none(db, Episode, episode_id)
     if not episode:
         raise HTTPException(404, f"Episode {episode_id} not found")
 
@@ -60,7 +60,7 @@ async def get_episode_progress(
     db: AsyncSession = Depends(get_db),
 ):
     """获取剧集进度"""
-    episode = await db.get(Episode, episode_id)
+    episode = await get_or_none(db, Episode, episode_id)
     if not episode:
         raise HTTPException(404, f"Episode {episode_id} not found")
 
@@ -80,7 +80,7 @@ async def get_project_progress(
     db: AsyncSession = Depends(get_db),
 ):
     """获取项目进度"""
-    project = await db.get(Project, project_id)
+    project = await get_or_none(db, Project, project_id)
     if not project:
         raise HTTPException(404, f"Project {project_id} not found")
 

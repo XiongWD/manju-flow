@@ -1,53 +1,103 @@
 """Centralized configuration from environment variables."""
 
+from __future__ import annotations
+
 import os
+from typing import Any
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
 
 
-class Settings:
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
     # ── App ──
-    APP_NAME: str = os.getenv("APP_NAME", "Manju")
-    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
-    DB_AUTO_CREATE: bool = os.getenv("DB_AUTO_CREATE", "true").lower() != "false"
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    APP_NAME: str = "Manju"
+    DEBUG: bool = False
+    DB_AUTO_CREATE: bool = True
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"  # "json" or "text"
 
     # ── Database ──
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./manju.db")
+    DATABASE_URL: str = "sqlite+aiosqlite:///./manju.db"
 
     # ── Auth ──
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "manju-dev-secret-change-in-production")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
-    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
-    MANJU_ADMIN_EMAIL: str = os.getenv("MANJU_ADMIN_EMAIL", "")
-    MANJU_ADMIN_PASSWORD: str = os.getenv("MANJU_ADMIN_PASSWORD", "")
+    JWT_SECRET: str = "manju-dev-secret-change-in-production"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    MANJU_ADMIN_EMAIL: str = ""
+    MANJU_ADMIN_PASSWORD: str = ""
 
     # ── CORS ──
-    CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
     # ── Cache ──
-    CACHE_TTL_SECONDS: int = int(os.getenv("CACHE_TTL_SECONDS", "300"))
+    CACHE_TTL_SECONDS: int = 300
+
+    # ── WebSocket ──
+    MAX_WS_CONNECTIONS: int = 100
 
     # ── Upload ──
-    MAX_UPLOAD_BYTES: int = int(os.getenv("MAX_UPLOAD_BYTES", "104857600"))  # 100MB
+    MAX_UPLOAD_BYTES: int = 104857600  # 100MB
 
     # ── Auth Middleware ──
-    AUTH_PROTECTED_PREFIXES: str = os.getenv(
-        "AUTH_PROTECTED_PREFIXES",
+    AUTH_PROTECTED_PREFIXES: str = (
         "/api/projects,/api/episodes,/api/scenes,/api/characters,/api/assets,"
         "/api/jobs,/api/publish,/api/qa,/api/knowledge,/api/files,"
         "/api/story-bibles,/api/prompts,/api/settings,/api/locations,/api/shots"
     )
 
     # ── Storage ──
-    STORAGE_LOCAL_PATH: str = os.getenv(
-        "STORAGE_LOCAL_PATH",
-        os.path.join(os.path.dirname(__file__), "storage_data"),
+    STORAGE_LOCAL_PATH: str = Field(
+        default_factory=lambda: os.path.join(os.path.dirname(__file__), "storage_data"),
     )
-    MINIO_ENDPOINT: str = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
-    MINIO_ACCESS_KEY: str = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-    MINIO_SECRET_KEY: str = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-    MINIO_BUCKET: str = os.getenv("MINIO_BUCKET", "manju-assets")
-    MINIO_USE_SSL: bool = os.getenv("MINIO_USE_SSL", "false").lower() == "true"
-    MINIO_PUBLIC_URL: str = os.getenv("MINIO_PUBLIC_URL", "")
+    MINIO_ENDPOINT: str = "http://localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET: str = "manju-assets"
+    MINIO_USE_SSL: bool = False
+    MINIO_PUBLIC_URL: str = ""
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Replace default env source with our custom one that handles comma-separated lists
+        return (
+            _CommaAwareEnvSource(settings_cls),
+            init_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )
+
+
+# Need to import after class definition to avoid circular issues
+from pydantic_settings import PydanticBaseSettingsSource
+
+
+class _CommaAwareEnvSource(EnvSettingsSource):
+    """Env source that handles comma-separated values for list[str] fields."""
+
+    def prepare_field_value(self, field_name: str, field_info: Any, value: Any, value_is_complex: bool) -> Any:
+        # For list fields with a comma-separated string that isn't JSON, split it
+        if value is not None and isinstance(value, str) and self.field_is_complex(field_info):
+            import json
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                return [s.strip() for s in value.split(",") if s.strip()]
+        return super().prepare_field_value(field_name, field_info, value, value_is_complex)
 
 
 _JWT_DEFAULT = "manju-dev-secret-change-in-production"
@@ -56,6 +106,7 @@ _JWT_DEFAULT = "manju-dev-secret-change-in-production"
 def validate_config() -> None:
     """Validate security-critical settings at startup."""
     import logging
+
     logger = logging.getLogger("manju.config")
     env = os.getenv("ENVIRONMENT", "development").lower()
     if settings.JWT_SECRET == _JWT_DEFAULT:

@@ -28,7 +28,7 @@ async def export_timeline(
     async with async_session_factory() as db:
         # 验证 episode 存在
         from database.models import Episode
-        episode = await db.get(Episode, episode_id)
+        episode = await get_or_none(db, Episode, episode_id)
         if not episode:
             raise HTTPException(status_code=404, detail=f"Episode {episode_id} not found")
 

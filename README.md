@@ -288,4 +288,113 @@ manju/
 
 ---
 
-*最后更新：2026-04-30*
+## PostgreSQL 迁移指南
+
+> **状态：准备就绪，可随时切换。** 代码已预留 PG 支持，`asyncpg` 驱动已在 requirements.txt 中。
+
+### 1. 前置条件
+
+当前依赖已就绪，无需额外安装：
+
+| 依赖 | 版本要求 | 当前状态 |
+|------|---------|----------|
+| `asyncpg` | >=0.29.0 | ✅ 已在 requirements.txt |
+| `alembic` | >=1.13.0 | ✅ 已在 requirements.txt |
+| `sqlalchemy[asyncio]` | >=2.0.0 | ✅ 已在 requirements.txt |
+| `aiosqlite` | >=0.20.0 | ✅ 已在 requirements.txt（切换后可移除） |
+
+### 2. DATABASE_URL 格式变更
+
+修改 `.env` 或环境变量即可：
+
+```bash
+# SQLite（当前）
+DATABASE_URL=sqlite+aiosqlite:///./manju.db
+
+# PostgreSQL（切换后）
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/manju
+```
+
+代码 `database/connection.py` 已根据 URL 前缀自动判断是否添加 SQLite 特有参数（`check_same_thread=False`），**无需修改连接代码**。
+
+`config.py` 默认值仍为 SQLite，生产环境通过 `.env` 覆盖即可。
+
+### 3. Alembic 迁移步骤
+
+Alembic 的 `env.py` 已从 `.env` 读取 `DATABASE_URL`，无需改动。
+
+```bash
+cd backend
+
+# 1. 确保 DATABASE_URL 指向 PostgreSQL
+export DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/manju"
+
+# 2. 如果从 SQLite 迁移，先查看当前迁移版本
+sqlite3 manju.db "SELECT version_num FROM alembic_version;"
+
+# 3. 在 PG 中标记该版本（假设版本为 0008）
+alembic stamp 0008
+
+# 4. 后续增量迁移正常执行
+alembic upgrade head
+```
+
+### 4. 数据迁移（SQLite → PostgreSQL）
+
+Alembic 只管 schema，数据迁移需要额外工具：
+
+```bash
+# 方案 A：pgloader（推荐，一行命令）
+pgloader sqlite:///./manju.db postgresql://user:password@localhost:5432/manju
+
+# 方案 B：pg_dump + 手动导入（小数据量可用）
+sqlite3 manju.db .dump > dump.sql
+# 手动编辑 dump.sql 修正 SQLite 特有语法后导入 psql
+```
+
+### 5. 兼容性检查结论
+
+| 检查项 | 结论 |
+|--------|------|
+| **AUTOINCREMENT** | ✅ 未使用。所有主键为 `String(32)` + 应用层 UUID，PG 完全兼容 |
+| **JSON 字段** | ✅ SQLAlchemy `JSON` → PG 自动映射为 `JSONB`，功能更强 |
+| **DateTime** | ✅ `DateTime` 无时区标注 → PG `TIMESTAMP WITHOUT TIME ZONE`，与应用层 UTC 一致 |
+| **Text vs VARCHAR** | ✅ `String(N)` / `Text` 均兼容 |
+| **Foreign Key** | ✅ 标准 `ForeignKey()` + `ondelete`，PG 支持 |
+| **复合主键** | ✅ `CharacterEpisode`、`SceneCharacter` 标准复合 PK |
+| **Boolean** | ✅ SQLAlchemy `Boolean`，PG 原生支持 |
+| **raw SQL** | ✅ 未发现 `text()` / `execute()`，全部 ORM |
+| **SQLite 特有语法** | ✅ 无 `rowid`、`sqlite_` 函数、`AUTOINCREMENT` |
+| **连接池** | ⚠️ 未显式配置，切换 PG 后建议添加 `pool_size` / `max_overflow` |
+
+### 6. 生产环境建议
+
+```python
+# database/connection.py — 建议为 PG 添加的配置
+if DATABASE_URL.startswith("postgresql"):
+    async_engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
+        pool_recycle=300,
+    )
+else:
+    async_engine = create_async_engine(DATABASE_URL, echo=False, connect_args=connect_args)
+```
+
+### 7. 测试建议
+
+1. **单元测试**：`pytest` + `pytest-asyncio`，测试库用 SQLite（fixture 覆盖 `DATABASE_URL`）
+2. **集成测试**：CI 中 Docker Compose 起 PG，验证完整迁移流程
+3. **回归重点**：
+   - 34 张表 CRUD
+   - JSON 字段读写（`prompt_bundle`、`metadata_json`）
+   - 关联查询（Project → Episode → Scene）
+   - 软删除（`SoftDeleteMixin`）
+   - 并发写入（Job/JobStep 高频更新）
+
+---
+
+*最后更新：2026-05-01*

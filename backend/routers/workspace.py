@@ -145,7 +145,7 @@ async def get_project_workspace(
     - 项目资产数量
     """
     # 获取项目
-    project = await db.get(Project, project_id)
+    project = await get_or_none(db, Project, project_id)
     if not project:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="项目不存在")

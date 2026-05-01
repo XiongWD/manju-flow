@@ -1,9 +1,35 @@
 """Manju Production OS — FastAPI 入口"""
 
 import logging
+import logging.config
+import sys
 import asyncio
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+from config import settings as _log_settings
+
+_LOG_LEVEL = getattr(_log_settings, "LOG_LEVEL", "INFO").upper()
+_LOG_FORMAT = getattr(_log_settings, "LOG_FORMAT", "json").lower()
+_IS_DEBUG = getattr(_log_settings, "DEBUG", False)
+
+if _IS_DEBUG or _LOG_FORMAT == "text":
+    # Human-readable text format (DEBUG mode or explicit text)
+    logging.basicConfig(
+        level=_LOG_LEVEL,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        stream=sys.stdout,
+    )
+else:
+    # Structured JSON format for production
+    from pythonjsonlogger import jsonlogger
+
+    _json_handler = logging.StreamHandler(sys.stdout)
+    _json_formatter = jsonlogger.JsonFormatter(
+        "%(asctime)s %(levelname)s %(name)s %(message)s",
+        rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
+    )
+    _json_handler.setFormatter(_json_formatter)
+
+    logging.basicConfig(level=_LOG_LEVEL, handlers=[_json_handler], force=True)
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Set
 
@@ -18,6 +44,7 @@ from middleware.rate_limit import limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from services.broadcast import broadcast
+from config import settings as _settings
 from routers import (
     projects_router,
     apikeys_router,
@@ -201,7 +228,10 @@ async def ws_channel(ws: WebSocket, channel: str):
     if env not in ("development", "debug"):
         await ws.close(code=1008, reason="WebSocket not available in production")
         return
-    await broadcast.connect(channel, ws)
+    accepted = await broadcast.connect(channel, ws)
+    if not accepted:
+        await ws.close(code=1013, reason=f"Maximum WebSocket connections reached ({_settings.MAX_WS_CONNECTIONS})")
+        return
     try:
         while True:
             data = await ws.receive_text()
@@ -220,6 +250,12 @@ async def websocket_live(websocket: WebSocket):
     if env not in ("development", "debug"):
         await websocket.close(code=1008, reason="WebSocket not available in production")
         return
+
+    # 连接数限制检查
+    if len(_active_websockets) >= _settings.MAX_WS_CONNECTIONS:
+        await websocket.close(code=1013, reason=f"Maximum WebSocket connections reached ({_settings.MAX_WS_CONNECTIONS})")
+        return
+
     await websocket.accept()
 
     # 加入连接池

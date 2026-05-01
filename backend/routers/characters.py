@@ -7,6 +7,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from database.connection import get_or_none
+from database.connection import not_deleted
 from database.models import Character, CharacterEpisode, User
 from services.auth import get_current_user
 from schemas.character import CharacterCreate, CharacterUpdate, CharacterRead
@@ -86,7 +88,7 @@ async def list_characters(
     """按项目获取角色列表"""
     skip = (page - 1) * page_size
     limit = min(page_size, 200)
-    q = select(Character).where(Character.project_id == project_id)
+    q = select(Character).where(Character.project_id, not_deleted(Character) == project_id)
     if search:
         q = q.filter(or_(
             Character.name.ilike(f"%{search}%"),
@@ -110,7 +112,7 @@ async def list_characters_by_episode(episode_id: str, db: AsyncSession = Depends
     """按剧集获取关联角色列表"""
     # 分页豁免：列表固定小
     result = await db.execute(
-        select(Character)
+        select(Character).where(not_deleted(Character))
         .join(CharacterEpisode, CharacterEpisode.character_id == Character.id)
         .where(CharacterEpisode.episode_id == episode_id)
         .order_by(Character.created_at.desc())
@@ -126,7 +128,7 @@ async def list_characters_by_episode(episode_id: str, db: AsyncSession = Depends
 @router.get("/{character_id}", response_model=CharacterRead)
 async def get_character(character_id: str, db: AsyncSession = Depends(get_db)):
     """获取单个角色"""
-    obj = await db.get(Character, character_id)
+    obj = await get_or_none(db, Character, character_id)
     if not obj:
         raise HTTPException(status_code=404, detail="角色不存在")
     eids = await _load_episode_ids(db, character_id)
@@ -136,7 +138,7 @@ async def get_character(character_id: str, db: AsyncSession = Depends(get_db)):
 @router.patch("/{character_id}", response_model=CharacterRead)
 async def update_character(character_id: str, body: CharacterUpdate, db: AsyncSession = Depends(get_db)):
     """更新角色"""
-    obj = await db.get(Character, character_id)
+    obj = await get_or_none(db, Character, character_id)
     if not obj:
         raise HTTPException(status_code=404, detail="角色不存在")
     episode_ids = body.episode_ids
@@ -152,7 +154,7 @@ async def update_character(character_id: str, body: CharacterUpdate, db: AsyncSe
 @router.delete("/{character_id}", status_code=204)
 async def delete_character(character_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除角色"""
-    obj = await db.get(Character, character_id)
+    obj = await get_or_none(db, Character, character_id)
     if not obj:
         raise HTTPException(status_code=404, detail="角色不存在")
     # junction rows cascade via FK, but delete explicitly to be safe
@@ -160,5 +162,5 @@ async def delete_character(character_id: str, db: AsyncSession = Depends(get_db)
         CharacterEpisode.__table__.delete()
         .where(CharacterEpisode.character_id == character_id)
     )
-    await db.delete(obj)
+    obj.soft_delete()
     await db.flush()

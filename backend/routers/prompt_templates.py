@@ -37,7 +37,7 @@ async def list_prompt_templates(
     """获取项目下的模板列表"""
     skip = (page - 1) * page_size
     limit = min(page_size, 200)
-    project = await db.get(Project, project_id)
+    project = await get_or_none(db, Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     q = select(PromptTemplate).where(PromptTemplate.project_id == project_id)
@@ -55,7 +55,7 @@ async def create_prompt_template(
     db: AsyncSession = Depends(get_db),
 ):
     """创建模板"""
-    project = await db.get(Project, project_id)
+    project = await get_or_none(db, Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     # 如果设为默认，取消其他默认模板

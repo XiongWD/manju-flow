@@ -9,6 +9,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from database.connection import get_or_none
+from database.connection import not_deleted
 from database.models import Project, User
 from services.auth import get_current_user
 from schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
@@ -39,7 +41,7 @@ async def list_projects(
     """获取项目列表"""
     skip = (page - 1) * page_size
     limit = min(page_size, 200)
-    base_q = select(Project)
+    base_q = select(Project).where(not_deleted(Project))
     if search:
         base_q = base_q.filter(or_(
             Project.name.ilike(f"%{search}%"),
@@ -57,7 +59,7 @@ async def list_projects(
 @router.get("/{project_id}", response_model=ProjectRead)
 async def get_project(project_id: str, db: AsyncSession = Depends(get_db)):
     """获取单个项目"""
-    project = await db.get(Project, project_id)
+    project = await get_or_none(db, Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     return project
@@ -66,7 +68,7 @@ async def get_project(project_id: str, db: AsyncSession = Depends(get_db)):
 @router.patch("/{project_id}", response_model=ProjectRead)
 async def update_project(project_id: str, body: ProjectUpdate, db: AsyncSession = Depends(get_db)):
     """更新项目"""
-    result = await db.execute(select(Project).where(Project.id == project_id))
+    result = await db.execute(select(Project).where(Project.id == project_id, not_deleted(Project)))
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -81,10 +83,10 @@ async def update_project(project_id: str, body: ProjectUpdate, db: AsyncSession 
 @router.delete("/{project_id}", status_code=204)
 async def delete_project(project_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除项目"""
-    result = await db.execute(select(Project).where(Project.id == project_id))
+    result = await db.execute(select(Project).where(Project.id == project_id, not_deleted(Project)))
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    await db.delete(project)
+    project.soft_delete()
     await db.flush()
     await broadcast.broadcast(f"project:{project_id}", {"type": "deleted", "entity": "project", "id": project_id})

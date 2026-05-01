@@ -33,7 +33,7 @@ async def list_episodes(
     """获取剧集列表"""
     skip = (page - 1) * page_size
     limit = min(page_size, 200)
-    q = select(Episode)
+    q = select(Episode).where(not_deleted(Episode))
     if project_id:
         q = q.where(Episode.project_id == project_id)
     if search:
@@ -64,12 +64,12 @@ async def create_episode(body: EpisodeCreate, db: AsyncSession = Depends(get_db)
 @router.get("/{episode_id}", response_model=EpisodeWithScenesRead)
 async def get_episode(episode_id: str, db: AsyncSession = Depends(get_db)):
     """获取单个剧集详情，含场景列表"""
-    ep = await db.get(Episode, episode_id)
+    ep = await get_or_none(db, Episode, episode_id)
     if not ep:
         raise HTTPException(status_code=404, detail="Episode not found")
 
     # 获取场景列表
-    scenes_q = select(Scene).where(Scene.episode_id == episode_id).order_by(Scene.scene_no)
+    scenes_q = select(Scene).where(Scene.episode_id == episode_id, not_deleted(Scene)).order_by(Scene.scene_no)
     scenes_result = await db.execute(scenes_q)
     scenes = scenes_result.scalars().all()
 
@@ -132,7 +132,7 @@ async def update_episode(
     db: AsyncSession = Depends(get_db)
 ):
     """更新剧集"""
-    result = await db.execute(select(Episode).where(Episode.id == episode_id))
+    result = await db.execute(select(Episode).where(Episode.id == episode_id, not_deleted(Episode)))
     episode = result.scalar_one_or_none()
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
@@ -147,11 +147,11 @@ async def update_episode(
 @router.delete("/{episode_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_episode(episode_id: str, db: AsyncSession = Depends(get_db)):
     """删除剧集"""
-    result = await db.execute(select(Episode).where(Episode.id == episode_id))
+    result = await db.execute(select(Episode).where(Episode.id == episode_id, not_deleted(Episode)))
     episode = result.scalar_one_or_none()
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
-    await db.delete(episode)
+    episode.soft_delete()
     await db.flush()
     await broadcast.broadcast(f"project:{episode.project_id}", {"type": "deleted", "entity": "episode", "id": episode_id})
 
@@ -159,11 +159,11 @@ async def delete_episode(episode_id: str, db: AsyncSession = Depends(get_db)):
 @router.post("/{episode_id}/mock-produce-scene/{scene_id}")
 async def mock_produce_scene(episode_id: str, scene_id: str, db: AsyncSession = Depends(get_db)):
     """启动 mock 场景生产（开发用）"""
-    ep = await db.get(Episode, episode_id)
+    ep = await get_or_none(db, Episode, episode_id)
     if not ep:
         raise HTTPException(status_code=404, detail="Episode not found")
 
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene or scene.episode_id != episode_id:
         raise HTTPException(status_code=404, detail="Scene not found in this episode")
 
@@ -220,7 +220,7 @@ async def get_episode_rules_report(
     - evidence: 来自 score_json / threshold_snapshot
     - failure_reason: 从关联 qa_issues 聚合
     """
-    ep = await db.get(Episode, episode_id)
+    ep = await get_or_none(db, Episode, episode_id)
     if not ep:
         raise HTTPException(status_code=404, detail="Episode not found")
 

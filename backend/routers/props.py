@@ -28,7 +28,7 @@ async def list_props(
     """获取项目下的道具列表"""
     skip = (page - 1) * page_size
     limit = min(page_size, 200)
-    project = await db.get(Project, project_id)
+    project = await get_or_none(db, Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     q = select(Prop).where(Prop.project_id == project_id)
@@ -46,7 +46,7 @@ async def create_prop(
     db: AsyncSession = Depends(get_db),
 ):
     """创建道具"""
-    project = await db.get(Project, project_id)
+    project = await get_or_none(db, Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     prop = Prop(project_id=project_id, **body.model_dump())
@@ -107,7 +107,7 @@ async def list_prop_states(
     db: AsyncSession = Depends(get_db),
 ):
     """获取镜头关联的道具状态列表"""
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
     # 分页豁免：列表固定小
@@ -126,7 +126,7 @@ async def create_prop_state(
     db: AsyncSession = Depends(get_db),
 ):
     """为镜头添加道具状态"""
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
     # 验证 prop 存在

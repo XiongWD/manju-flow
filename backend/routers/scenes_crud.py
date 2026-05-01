@@ -89,7 +89,7 @@ async def list_scenes(
     """获取镜头列表"""
     skip = (page - 1) * page_size
     limit = min(page_size, 200)
-    q = select(Scene)
+    q = select(Scene).where(not_deleted(Scene))
     if episode_id:
         q = q.where(Scene.episode_id == episode_id)
     if search:
@@ -123,7 +123,7 @@ async def list_scenes_by_character(character_id: str, db: AsyncSession = Depends
     """按角色获取关联镜头列表"""
     # 分页豁免：列表固定小
     result = await db.execute(
-        select(Scene)
+        select(Scene).where(not_deleted(Scene))
         .join(SceneCharacter, SceneCharacter.scene_id == Scene.id)
         .where(SceneCharacter.character_id == character_id)
         .order_by(Scene.scene_no)
@@ -139,7 +139,7 @@ async def list_scenes_by_character(character_id: str, db: AsyncSession = Depends
 @router.get("/{scene_id}", response_model=SceneWithVersionsRead)
 async def get_scene(scene_id: str, db: AsyncSession = Depends(get_db)):
     """获取单个镜头详情，含最新版本"""
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -180,7 +180,7 @@ async def update_scene(
     db: AsyncSession = Depends(get_db)
 ):
     """更新镜头"""
-    result = await db.execute(select(Scene).where(Scene.id == scene_id))
+    result = await db.execute(select(Scene).where(Scene.id == scene_id, not_deleted(Scene)))
     scene = result.scalar_one_or_none()
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -198,11 +198,11 @@ async def update_scene(
 @router.delete("/{scene_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_scene(scene_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """删除镜头"""
-    result = await db.execute(select(Scene).where(Scene.id == scene_id))
+    result = await db.execute(select(Scene).where(Scene.id == scene_id, not_deleted(Scene)))
     scene = result.scalar_one_or_none()
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
-    await db.delete(scene)
+    scene.soft_delete()
     await db.flush()
     await broadcast.broadcast(f"project:{scene.episode_id}", {"type": "deleted", "entity": "scene", "id": scene_id})
 
@@ -221,7 +221,7 @@ async def reorder_scenes(
     """
     results = []
     for idx, scene_id in enumerate(body.scene_ids, start=1):
-        scene = await db.get(Scene, scene_id)
+        scene = await get_or_none(db, Scene, scene_id)
         if not scene:
             raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
         scene.scene_no = idx
@@ -241,9 +241,10 @@ async def batch_delete_scenes(
     deleted: list[str] = []
     not_found: list[str] = []
     for scene_id in body.scene_ids:
-        scene = await db.get(Scene, scene_id)
+        result = await db.execute(select(Scene).where(Scene.id == scene_id, not_deleted(Scene)))
+        scene = result.scalar_one_or_none()
         if scene:
-            await db.delete(scene)
+            scene.soft_delete()
             deleted.append(scene_id)
         else:
             not_found.append(scene_id)
@@ -259,7 +260,7 @@ async def batch_update_scene_status(
     """批量修改镜头状态"""
     results = []
     for scene_id in body.scene_ids:
-        scene = await db.get(Scene, scene_id)
+        scene = await get_or_none(db, Scene, scene_id)
         if not scene:
             raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
         scene.status = body.status
@@ -284,7 +285,7 @@ async def batch_update_scene_duration(
     """
     results = []
     for scene_id in body.scene_ids:
-        scene = await db.get(Scene, scene_id)
+        scene = await get_or_none(db, Scene, scene_id)
         if not scene:
             raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
         current = scene.duration or 0.0

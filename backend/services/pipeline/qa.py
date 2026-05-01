@@ -1,70 +1,32 @@
 """QA Gate — Phase 4
 
-QA Gate 模块：
-- QAGate 类
-- run_gate() 方法执行质量检查
-- 支持多种 gate code（G6: 视频质量、G8: 音频质量、G9: 合成质量）
-- 043a 阶段：基础检查（文件存在性、大小、时长）
-- 创建 qa_runs + qa_issues 记录
-- 生成 evidence asset（JSON 格式）
+QA Gate 模块（拆分后）：
+- QAGate 类保留在此文件，负责 run_gate 编排
+- 具体检查实现在 qa_checks.py
+
+保持 import 兼容：from services.pipeline.qa import QAGate
 """
 
 import hashlib
 import json
-import os
-import shutil
-import subprocess
-from typing import Optional
 
-from database.models import (
-    Asset,
-    AssetLink,
-    QAIssue,
-    QARun,
-)
+from database.models import Asset, AssetLink, QAIssue, QARun
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.storage.service import get_storage_service
 
 from .base import PipelineError
-
-
-def _get_ffprobe_path() -> Optional[str]:
-    """获取 ffprobe 可执行文件路径"""
-    return shutil.which("ffprobe")
-
-
-def _probe_media(uri: str) -> Optional[dict]:
-    """使用 ffprobe 获取媒体文件信息
-
-    返回 dict 包含 format/stream 信息，或 None（ffprobe 不可用/文件不存在/解析失败）
-    """
-    ffprobe = _get_ffprobe_path()
-    if not ffprobe:
-        return None
-
-    # 从 URI 解析本地路径
-    local_path = None
-    if uri and uri.startswith("file://"):
-        local_path = uri[7:]
-    elif uri and os.path.exists(uri):
-        local_path = uri
-
-    if not local_path or not os.path.exists(local_path):
-        return None
-
-    try:
-        result = subprocess.run(
-            [ffprobe, "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", local_path],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0:
-            return json.loads(result.stdout)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
-        pass
-    return None
+from .qa_checks import (
+    check_character_asset_exists,
+    check_character_asset_linked,
+    check_duration,
+    check_file_exists,
+    check_file_size,
+    check_ip_adapter_similarity,
+    check_media_format,
+    get_severity,
+    get_suggested_action,
+)
 
 
 class QAGate:
@@ -78,7 +40,7 @@ class QAGate:
             "asset_types": ["character_ref"],
             "checks": ["character_asset_exists", "character_asset_linked"],
             "thresholds": {
-                "min_assets": 1,  # 至少 1 个角色资产
+                "min_assets": 1,
             },
         },
         "G3": {
@@ -87,7 +49,7 @@ class QAGate:
             "asset_types": ["character_ref"],
             "checks": ["ip_adapter_similarity"],
             "thresholds": {
-                "min_similarity": 0.72,  # 至少 0.72
+                "min_similarity": 0.72,
             },
         },
         "G6": {
@@ -96,8 +58,8 @@ class QAGate:
             "asset_types": ["video", "mixed_audio"],
             "checks": ["file_exists", "file_size", "duration", "media_format"],
             "thresholds": {
-                "min_file_size": 1024,  # 至少 1KB
-                "min_duration": 0.5,  # 至少 0.5 秒
+                "min_file_size": 1024,
+                "min_duration": 0.5,
                 "min_width": 640,
                 "min_height": 480,
                 "min_fps": 15,
@@ -109,8 +71,8 @@ class QAGate:
             "asset_types": ["audio"],
             "checks": ["file_exists", "file_size", "duration", "media_format"],
             "thresholds": {
-                "min_file_size": 512,  # 至少 512 字节
-                "min_duration": 0.1,  # 至少 0.1 秒
+                "min_file_size": 512,
+                "min_duration": 0.1,
                 "require_audio": True,
             },
         },
@@ -136,34 +98,16 @@ class QAGate:
         gate_code: str,
         subject_type: str,
         subject_id: str,
-        input_asset_id: Optional[str],
+        input_asset_id,
         step_key: str,
-        project_id: Optional[str] = None,
+        project_id=None,
     ) -> QARun:
-        """执行 QA Gate 检查
-
-        Args:
-            db: 数据库 session
-            gate_code: Gate 代码（G6/G8/G9）
-            subject_type: 被检查对象类型
-            subject_id: 被检查对象 ID
-            input_asset_id: 输入资产 ID
-            step_key: 关联的步骤 key
-            project_id: 项目 ID（可选，从 scene 推断）
-
-        Returns:
-            QARun: QA 运行记录
-
-        Raises:
-            ValueError: Gate code 不支持
-            PipelineError: 获取资产失败
-        """
+        """执行 QA Gate 检查"""
         if gate_code not in self.GATES:
             raise ValueError(f"Unknown gate code: {gate_code}")
 
         gate_def = self.GATES[gate_code]
 
-        # 获取输入资产
         if not input_asset_id:
             raise PipelineError(
                 message=f"No input asset provided for {gate_code}",
@@ -177,28 +121,16 @@ class QAGate:
                 error_type="provider_error",
             )
 
-        # 获取 project_id（如果没传）
         if not project_id:
             project_id = asset.project_id
 
-        # 执行检查
-        check_results = await self._run_checks(
-            db=db,
-            asset=asset,
-            gate_code=gate_code,
-            gate_def=gate_def,
-        )
+        check_results = await self._run_checks(db, asset, gate_code, gate_def)
 
-        # 计算总分
         total_checks = len(gate_def["checks"])
         passed_checks = sum(1 for r in check_results if r["passed"])
         overall_score = (passed_checks / total_checks) * 100 if total_checks > 0 else 0
-
-        # 判定状态
-        # 043a 阶段规则：所有检查通过 = passed，任何失败 = failed
         status = "passed" if passed_checks == total_checks else "failed"
 
-        # 创建 QARun
         qa_run = QARun(
             id=hashlib.sha256(f"{gate_code}_{subject_id}_{input_asset_id}".encode()).hexdigest()[:32],
             project_id=project_id,
@@ -206,7 +138,7 @@ class QAGate:
             subject_type=subject_type,
             subject_id=subject_id,
             input_asset_id=input_asset_id,
-            evidence_asset_id=None,  # 稍后创建 evidence asset 后填充
+            evidence_asset_id=None,
             step_key=step_key,
             status=status,
             score_json={
@@ -220,30 +152,23 @@ class QAGate:
         db.add(qa_run)
         await db.flush()
 
-        # 创建 evidence asset（JSON 格式）
+        # 创建 evidence asset
         evidence_data = {
             "gate_code": gate_code,
             "gate_name": gate_def["name"],
             "status": status,
             "overall_score": overall_score,
             "asset": {
-                "id": asset.id,
-                "type": asset.type,
-                "uri": asset.uri,
-                "file_size": asset.file_size,
-                "duration": asset.duration,
+                "id": asset.id, "type": asset.type, "uri": asset.uri,
+                "file_size": asset.file_size, "duration": asset.duration,
             },
             "checks": check_results,
             "thresholds": gate_def["thresholds"],
         }
 
-        evidence_content = json.dumps(evidence_data, ensure_ascii=False, indent=2)
         evidence_filename = f"qa_{gate_code}_{subject_id[:8]}_{qa_run.id[:8]}.json"
-
         storage_svc = get_storage_service()
-        save_result = await storage_svc.save_json(
-            evidence_data, evidence_filename, prefix="qa",
-        )
+        save_result = await storage_svc.save_json(evidence_data, evidence_filename, prefix="qa")
 
         evidence_asset = Asset(
             id=hashlib.sha256(evidence_filename.encode()).hexdigest()[:32],
@@ -253,40 +178,29 @@ class QAGate:
             mime_type="application/json",
             file_size=save_result["size"],
             metadata_json={
-                "gate_code": gate_code,
-                "qa_run_id": qa_run.id,
-                "status": status,
-                "checksum": save_result["checksum"],
+                "gate_code": gate_code, "qa_run_id": qa_run.id,
+                "status": status, "checksum": save_result["checksum"],
             },
         )
         db.add(evidence_asset)
         await db.flush()
-
-        # 更新 qa_run 的 evidence_asset_id
         qa_run.evidence_asset_id = evidence_asset.id
 
-        # 创建 AssetLink
         evidence_link = AssetLink(
             id=hashlib.sha256(f"{evidence_asset.id}_{qa_run.id}".encode()).hexdigest()[:32],
-            asset_id=evidence_asset.id,
-            owner_type="qa_run",
-            owner_id=qa_run.id,
+            asset_id=evidence_asset.id, owner_type="qa_run", owner_id=qa_run.id,
             relation_type="evidence",
         )
         db.add(evidence_link)
 
-        # 输入资产关联
         if input_asset_id:
             input_link = AssetLink(
                 id=hashlib.sha256(f"{input_asset_id}_{qa_run.id}".encode()).hexdigest()[:32],
-                asset_id=input_asset_id,
-                owner_type="qa_run",
-                owner_id=qa_run.id,
+                asset_id=input_asset_id, owner_type="qa_run", owner_id=qa_run.id,
                 relation_type="qa_input",
             )
             db.add(input_link)
 
-        # 如果有失败的检查，创建 QAIssue
         failed_checks = [r for r in check_results if not r["passed"]]
         if failed_checks:
             for failed_check in failed_checks:
@@ -294,335 +208,41 @@ class QAGate:
                     id=hashlib.sha256(f"{qa_run.id}_{failed_check['check']}_{subject_id}".encode()).hexdigest()[:32],
                     qa_run_id=qa_run.id,
                     issue_code=f"{gate_code}_{failed_check['check'].upper()}_FAIL",
-                    severity=self._get_severity(failed_check["check"]),
+                    severity=get_severity(failed_check["check"]),
                     message=failed_check["message"],
                     evidence_asset_id=evidence_asset.id,
                     related_asset_id=input_asset_id,
                     related_scene_version_id=subject_id if subject_type == "scene_version" else None,
-                    suggested_action=self._get_suggested_action(gate_code, failed_check["check"]),
+                    suggested_action=get_suggested_action(gate_code, failed_check["check"]),
                 )
                 db.add(issue)
 
         await db.commit()
         await db.refresh(qa_run)
-
         return qa_run
 
-    async def _run_checks(
-        self,
-        db: AsyncSession,
-        asset: Asset,
-        gate_code: str,
-        gate_def: dict,
-    ) -> list[dict]:
-        """执行所有检查
-
-        Args:
-            db: 数据库 session
-            asset: 待检查资产
-            gate_code: Gate 代码
-            gate_def: Gate 定义
-
-        Returns:
-            list[dict]: 检查结果列表
-        """
+    async def _run_checks(self, db, asset, gate_code, gate_def):
+        """执行所有检查"""
         results = []
-
         for check_name in gate_def["checks"]:
             if check_name == "file_exists":
-                result = await self._check_file_exists(asset)
+                result = await check_file_exists(asset)
             elif check_name == "file_size":
-                result = self._check_file_size(asset, gate_def["thresholds"])
+                result = check_file_size(asset, gate_def["thresholds"])
             elif check_name == "duration":
-                result = self._check_duration(asset, gate_def["thresholds"])
+                result = check_duration(asset, gate_def["thresholds"])
             elif check_name == "character_asset_exists":
-                result = await self._check_character_asset_exists(db, asset, gate_def["thresholds"])
+                result = await check_character_asset_exists(db, asset, gate_def["thresholds"])
             elif check_name == "character_asset_linked":
-                result = await self._check_character_asset_linked(db, asset)
+                result = await check_character_asset_linked(db, asset)
             elif check_name == "ip_adapter_similarity":
-                result = self._check_ip_adapter_similarity(asset, gate_def["thresholds"])
+                result = check_ip_adapter_similarity(asset, gate_def["thresholds"])
             elif check_name == "media_format":
-                result = await self._check_media_format(asset, gate_def["thresholds"])
+                result = await check_media_format(asset, gate_def["thresholds"])
             else:
-                # 未知检查，默认通过
                 result = {
-                    "check": check_name,
-                    "passed": True,
-                    "score": 100,
+                    "check": check_name, "passed": True, "score": 100,
                     "message": f"Check {check_name} not implemented, skipping",
                 }
-
             results.append(result)
-
         return results
-
-    async def _check_file_exists(self, asset: Asset) -> dict:
-        """检查文件是否存在
-
-        043a 阶段简化：只检查 URI 是否非空
-        TODO: 043b 阶段实现真实文件检查（MinIO/local storage）
-        """
-        # 简化检查：uri 非空
-        exists = bool(asset.uri and asset.uri.strip())
-
-        return {
-            "check": "file_exists",
-            "passed": exists,
-            "score": 100 if exists else 0,
-            "message": "File exists" if exists else f"File not found (URI: {asset.uri})",
-        }
-
-    def _check_file_size(self, asset: Asset, thresholds: dict) -> dict:
-        """检查文件大小"""
-        file_size = asset.file_size or 0
-        min_size = thresholds.get("min_file_size", 0)
-
-        passed = file_size >= min_size
-        score = 100 if passed else 0
-
-        return {
-            "check": "file_size",
-            "passed": passed,
-            "score": score,
-            "message": f"File size: {file_size} bytes (min: {min_size})",
-            "details": {"file_size": file_size, "min_size": min_size},
-        }
-
-    def _check_duration(self, asset: Asset, thresholds: dict) -> dict:
-        """检查时长"""
-        duration = asset.duration or 0
-        min_duration = thresholds.get("min_duration", 0)
-
-        passed = duration >= min_duration
-        score = 100 if passed else 0
-
-        return {
-            "check": "duration",
-            "passed": passed,
-            "score": score,
-            "message": f"Duration: {duration}s (min: {min_duration}s)",
-            "details": {"duration": duration, "min_duration": min_duration},
-        }
-
-    def _get_suggested_action(self, gate_code: str, check_name: str) -> str:
-        """获取建议修复动作"""
-        actions = {
-            "G2": {
-                "character_asset_exists": "角色资产未生成，检查角色资产生成步骤",
-                "character_asset_linked": "角色资产未关联到场景版本，检查资产链接配置",
-            },
-            "G3": {
-                "ip_adapter_similarity": "IP-Adapter 相似度不足，建议手动审查或调整参考图",
-            },
-            "G6": {
-                "file_exists": "检查视频生成输出路径配置",
-                "file_size": "视频文件过小，可能生成失败，重试生成",
-                "duration": "视频时长不足，检查 prompt 和参数配置",
-                "media_format": "视频媒体格式不符合要求（分辨率/帧率/时长），检查生成参数",
-            },
-            "G8": {
-                "file_exists": "检查音频生成输出路径配置",
-                "file_size": "音频文件过小，可能生成失败，重试生成",
-                "duration": "音频时长不足，检查 TTS 文本和配置",
-                "media_format": "音频媒体格式不符合要求（缺音轨/时长），检查生成配置",
-            },
-            "G9": {
-                "file_exists": "检查合成输出路径配置",
-                "file_size": "合成文件过小，ffmpeg 可能失败，检查日志",
-                "duration": "合成时长不足，检查视频和音频时长匹配",
-                "media_format": "合成媒体格式不符合要求（分辨率/音轨），检查 ffmpeg 合成参数",
-            },
-        }
-
-        return actions.get(gate_code, {}).get(check_name, "联系技术支持")
-
-    async def _check_character_asset_exists(
-        self,
-        db: AsyncSession,
-        asset: Asset,
-        thresholds: dict,
-    ) -> dict:
-        """检查角色资产是否存在
-
-        G2 检查：验证是否生成了角色资产
-        """
-        from sqlalchemy import select
-        from database.models import CharacterAsset
-
-        # 检查是否存在 CharacterAsset 记录
-        char_asset_q = select(CharacterAsset).where(
-            CharacterAsset.asset_id == asset.id
-        )
-        result = await db.execute(char_asset_q)
-        char_asset = result.scalar_one_or_none()
-
-        exists = char_asset is not None
-
-        return {
-            "check": "character_asset_exists",
-            "passed": exists,
-            "score": 100 if exists else 0,
-            "message": "Character asset exists" if exists else "Character asset record not found",
-            "details": {
-                "asset_id": asset.id,
-                "char_asset_id": char_asset.id if char_asset else None,
-            },
-        }
-
-    async def _check_character_asset_linked(
-        self,
-        db: AsyncSession,
-        asset: Asset,
-    ) -> dict:
-        """检查角色资产是否链接到场景版本
-
-        G2 检查：验证角色资产是否正确关联到 scene_version
-        """
-        from sqlalchemy import select
-        from database.models import AssetLink
-
-        # 检查是否存在 character_reference 类型的 AssetLink
-        link_q = select(AssetLink).where(
-            AssetLink.asset_id == asset.id,
-            AssetLink.relation_type == "character_reference",
-        )
-        result = await db.execute(link_q)
-        link = result.scalar_one_or_none()
-
-        linked = link is not None
-
-        return {
-            "check": "character_asset_linked",
-            "passed": linked,
-            "score": 100 if linked else 0,
-            "message": "Character asset linked to scene_version" if linked else "Character asset not linked",
-            "details": {
-                "asset_id": asset.id,
-                "link_id": link.id if link else None,
-                "owner_type": link.owner_type if link else None,
-                "owner_id": link.owner_id if link else None,
-            },
-        }
-
-    def _check_ip_adapter_similarity(
-        self,
-        asset: Asset,
-        thresholds: dict,
-    ) -> dict:
-        """检查 IP-Adapter cosine similarity
-
-        G3 检查：从 asset.metadata 中读取 similarity 分数
-        """
-        # 从 metadata 中读取 similarity 分数
-        similarity = 0.0
-        if asset.metadata_json:
-            similarity = asset.metadata_json.get("similarity", 0.0)
-
-        min_similarity = thresholds.get("min_similarity", 0.72)
-        passed = similarity >= min_similarity
-
-        # 将 similarity 转换为 0-100 分
-        score = int((similarity / 1.0) * 100)
-
-        return {
-            "check": "ip_adapter_similarity",
-            "passed": passed,
-            "score": score,
-            "message": f"IP-Adapter similarity: {similarity:.3f} (min: {min_similarity})",
-            "details": {
-                "similarity": similarity,
-                "min_similarity": min_similarity,
-            },
-        }
-
-    async def _check_media_format(self, asset: Asset, thresholds: dict) -> dict:
-        """使用 ffprobe 检查媒体格式硬指标（分辨率、时长、帧率、音轨）"""
-        ffprobe = _get_ffprobe_path()
-        if not ffprobe:
-            return {
-                "check": "media_format",
-                "passed": False,
-                "score": 0,
-                "message": "ffprobe not available, cannot perform media QA",
-                "details": {"ffprobe_available": False},
-            }
-
-        probe = _probe_media(asset.uri)
-        if probe is None:
-            return {
-                "check": "media_format",
-                "passed": False,
-                "score": 0,
-                "message": f"Failed to probe media: {asset.uri}",
-                "details": {"uri": asset.uri},
-            }
-
-        issues = []
-        format_info = probe.get("format", {})
-        streams = probe.get("streams", [])
-
-        # 时长检查
-        duration = float(format_info.get("duration", 0))
-        min_duration = thresholds.get("min_duration", 0.5)
-        if duration < min_duration:
-            issues.append(f"Duration {duration:.2f}s < min {min_duration}s")
-
-        # 视频流检查
-        video_streams = [s for s in streams if s.get("codec_type") == "video"]
-        if video_streams:
-            vs = video_streams[0]
-            width = int(vs.get("width", 0))
-            height = int(vs.get("height", 0))
-            fps_raw = vs.get("r_frame_rate", "0/1")
-            try:
-                fps = float(fps_raw.split("/")[0]) / float(fps_raw.split("/")[1]) if "/" in fps_raw else float(fps_raw)
-            except (ValueError, ZeroDivisionError):
-                fps = 0.0
-
-            min_width = thresholds.get("min_width", 0)
-            min_height = thresholds.get("min_height", 0)
-            min_fps = thresholds.get("min_fps", 0)
-
-            if min_width and width < min_width:
-                issues.append(f"Width {width} < min {min_width}")
-            if min_height and height < min_height:
-                issues.append(f"Height {height} < min {min_height}")
-            if min_fps and fps < min_fps:
-                issues.append(f"FPS {fps:.1f} < min {min_fps}")
-
-        # 音频流检查
-        audio_streams = [s for s in streams if s.get("codec_type") == "audio"]
-        require_audio = thresholds.get("require_audio", False)
-        if require_audio and not audio_streams:
-            issues.append("No audio stream found")
-
-        passed = len(issues) == 0
-        score = 100 if passed else 0
-
-        return {
-            "check": "media_format",
-            "passed": passed,
-            "score": score,
-            "message": "Media format OK" if passed else f"Media format issues: {'; '.join(issues)}",
-            "details": {
-                "duration": duration,
-                "video_streams": len(video_streams),
-                "audio_streams": len(audio_streams),
-                "issues": issues,
-                "ffprobe_available": True,
-            },
-        }
-
-    def _get_severity(self, check_name: str) -> str:
-        """获取问题严重程度
-
-        043b 阶段：
-        - G2/G3 失败使用 warning 级别（不阻断流程）
-        - 其他检查失败使用 critical 级别
-        """
-        # G2/G3 的失败使用 warning
-        if check_name in ("character_asset_exists", "character_asset_linked", "ip_adapter_similarity"):
-            return "warning"
-
-        # 其他检查失败使用 critical
-        return "critical"

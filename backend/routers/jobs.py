@@ -49,7 +49,7 @@ async def list_jobs(
     """获取 Job 列表，支持状态和目标过滤"""
     skip = (page - 1) * page_size
     limit = min(page_size, 200)
-    q = select(Job)
+    q = select(Job).where(not_deleted(Job))
     if project_id:
         q = q.where(Job.project_id == project_id)
     if status:
@@ -121,7 +121,7 @@ async def get_job_latest(job_id: str):
 @router.post("/{job_id}/retry")
 async def retry_job(job_id: str, db: AsyncSession = Depends(get_db)):
     """重跑任务：基于原始 job 的 target 创建新 job + 新 scene_version"""
-    result = await db.execute(select(Job).where(Job.id == job_id))
+    result = await db.execute(select(Job).where(Job.id == job_id, not_deleted(Job)))
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(404, "Job not found")
@@ -163,7 +163,7 @@ async def create_mock_scene_job(
     db: AsyncSession = Depends(get_db),
 ):
     """启动 mock 场景生产任务（后台执行，不阻塞请求）"""
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(404, "Scene not found")
 
@@ -197,7 +197,7 @@ async def create_scene_job(
     db: AsyncSession = Depends(get_db),
 ):
     """创建并后台执行场景生产任务（不阻塞请求）"""
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(404, "Scene not found")
 

@@ -56,7 +56,7 @@ async def create_still_candidate(
     前置条件：scene 存在且 shot_stage 为 still_generating 或 still_review。
     自动将 shot_stage 推进到 still_review。
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(404, f"Scene {scene_id} not found")
 
@@ -102,7 +102,7 @@ async def list_still_candidates(
     """获取镜头的静帧候选列表
     # 分页豁免：列表固定小
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(404, f"Scene {scene_id} not found")
 
@@ -173,7 +173,7 @@ async def lock_still(
     前置条件：指定候选存在且状态为 approved。
     将 shot_stage 推进到 still_locked，更新 scene.locked_still_id。
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(404, f"Scene {scene_id} not found")
 
@@ -212,7 +212,7 @@ async def get_locked_still(
     db: AsyncSession = Depends(get_db),
 ):
     """获取当前锁定的静帧"""
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(404, f"Scene {scene_id} not found")
 

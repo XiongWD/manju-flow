@@ -26,7 +26,7 @@ async def list_locations(
     """获取项目下的地点列表"""
     skip = (page - 1) * page_size
     limit = min(page_size, 200)
-    project = await db.get(Project, project_id)
+    project = await get_or_none(db, Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     q = select(Location).where(Location.project_id == project_id)
@@ -44,7 +44,7 @@ async def create_location(
     db: AsyncSession = Depends(get_db),
 ):
     """创建地点"""
-    project = await db.get(Project, project_id)
+    project = await get_or_none(db, Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     location = Location(project_id=project_id, **body.model_dump())

@@ -30,7 +30,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .connection import Base
+from .connection import Base, SoftDeleteMixin, not_deleted
 
 
 def _uuid() -> str:
@@ -43,7 +43,7 @@ def _now() -> datetime:
 
 # ─── 1. projects ────────────────────────────────────────────────────────────
 
-class Project(Base):
+class Project(SoftDeleteMixin, Base):
     __tablename__ = "projects"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
@@ -107,7 +107,7 @@ class StoryBible(Base):
 
 # ─── 4. characters ──────────────────────────────────────────────────────────
 
-class Character(Base):
+class Character(SoftDeleteMixin, Base):
     __tablename__ = "characters"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
@@ -161,7 +161,7 @@ class CharacterAsset(Base):
 
 # ─── 6. episodes ────────────────────────────────────────────────────────────
 
-class Episode(Base):
+class Episode(SoftDeleteMixin, Base):
     __tablename__ = "episodes"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
@@ -185,7 +185,7 @@ class Episode(Base):
 
 # ─── 7. scenes ──────────────────────────────────────────────────────────────
 
-class Scene(Base):
+class Scene(SoftDeleteMixin, Base):
     __tablename__ = "scenes"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
@@ -292,7 +292,7 @@ class AssetLink(Base):
 
 # ─── 11. jobs ───────────────────────────────────────────────────────────────
 
-class Job(Base):
+class Job(SoftDeleteMixin, Base):
     __tablename__ = "jobs"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)

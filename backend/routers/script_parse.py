@@ -36,7 +36,7 @@ async def parse_script(
 ):
     """解析剧本并生成报告（不自动创建 Scene）"""
     # 加载 episode
-    episode = await db.get(Episode, episode_id)
+    episode = await get_or_none(db, Episode, episode_id)
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
 
@@ -77,7 +77,7 @@ async def list_parse_reports(
     """获取某个 episode 的所有解析历史
     # 分页豁免：列表固定小
     """
-    episode = await db.get(Episode, episode_id)
+    episode = await get_or_none(db, Episode, episode_id)
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
 

@@ -39,7 +39,7 @@ async def list_scene_versions(scene_id: str, db: AsyncSession = Depends(get_db))
     """获取镜头版本列表
     # 分页豁免：列表固定小
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -59,7 +59,7 @@ async def get_scene_version_tree(
     039b：提供版本链可视化所需的数据。
     返回版本列表（按 version_no 升序），每个版本包含关联的 fallback_records。
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -82,7 +82,7 @@ async def get_scene_fallback_history(
     039b：提供 fallback 历史可视化所需的数据。
     返回所有 fallback 记录（按时间降序）。
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -105,7 +105,7 @@ async def retry_scene_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """重跑镜头：创建新 job + 新 scene_version，保留历史"""
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -132,7 +132,7 @@ async def rework_scene_version(
     基于指定的 scene_version 创建新版本，带变更原因。
     新版本的 parent_version_id 指向基准版本，并触发新的生成 job。
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -168,7 +168,7 @@ async def get_scene_version_diff(
 
     比较场景中两个版本的差异，返回字段级 diff。
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -201,7 +201,7 @@ async def switch_locked_version(
     便捷接口：在场景维度切换 locked_version。
     如果场景已有锁定版本，需要 force=True 才能覆盖。
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -239,7 +239,7 @@ async def get_scene_subtitle(
     db: AsyncSession = Depends(get_db),
 ):
     """获取镜头版本的字幕数据（042b）"""
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -270,7 +270,7 @@ async def update_scene_subtitle(
 
     整体替换 params.subtitle。按 index 递增验证。
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -306,7 +306,7 @@ async def get_scene_audio_mix(
     db: AsyncSession = Depends(get_db),
 ):
     """获取镜头版本的音频混音参数（042b）"""
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
@@ -339,7 +339,7 @@ async def update_scene_audio_mix(
 
     合并更新 params.audio_mix，只覆盖请求中非 None 的字段。
     """
-    scene = await db.get(Scene, scene_id)
+    scene = await get_or_none(db, Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
