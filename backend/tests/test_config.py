@@ -42,7 +42,9 @@ class TestDefaults:
 
     def test_database_url(self, monkeypatch):
         s = self._fresh_settings(monkeypatch)
-        assert s.DATABASE_URL == "sqlite+aiosqlite:///./manju.db"
+        # Default DB path is absolute, pointing to data/manju.db under project root
+        assert "manju.db" in s.DATABASE_URL
+        assert s.DATABASE_URL.startswith("sqlite+aiosqlite:///")
 
     def test_jwt_secret(self, monkeypatch):
         s = self._fresh_settings(monkeypatch)

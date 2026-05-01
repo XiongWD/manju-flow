@@ -656,11 +656,52 @@ export interface UserRead {
   id: string;
   email: string;
   display_name?: string;
-  role: string;
+  role: 'superadmin' | 'manager' | 'employer' | string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
   last_login_at?: string;
+  workspace_id?: string | null;
+  page_permissions?: string[] | null;
+}
+
+export interface ManagerRead {
+  id: string;
+  email: string;
+  display_name?: string;
+  role: string;
+  is_active: boolean;
+  workspace_id?: string | null;
+  created_at: string;
+}
+
+export interface WorkspaceRead {
+  id: string;
+  name: string;
+  owner_id: string;
+  max_employers: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemberRead {
+  id: string;
+  user_id: string;
+  workspace_id: string;
+  role: string;
+  page_permissions: string[];
+  invited_by?: string | null;
+  created_at: string;
+  email?: string;
+  display_name?: string;
+}
+
+export interface MemberInvite {
+  email: string;
+  password: string;
+  display_name?: string;
+  page_permissions?: string[];
 }
 
 // ── Analytics types ─────────────────────────────────────────
@@ -732,6 +773,54 @@ class ApiClient {
 
   async getMe(): Promise<UserRead> {
     return this.request<UserRead>("auth/me");
+  }
+
+  // ── System API (superadmin only) ─────────────────────────
+
+  async systemGetManagers(): Promise<ManagerRead[]> {
+    return this.request<ManagerRead[]>("system/managers");
+  }
+
+  async systemCreateManager(data: { email: string; password: string; display_name?: string }): Promise<ManagerRead> {
+    return this.request<ManagerRead>("system/managers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async systemUpdateManagerStatus(id: string, is_active: boolean): Promise<ManagerRead> {
+    return this.request<ManagerRead>(`system/managers/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active }),
+    });
+  }
+
+  // ── Workspace member API (manager only) ──────────────────
+
+  async workspaceGetInfo(): Promise<WorkspaceRead> {
+    return this.request<WorkspaceRead>("workspaces/me");
+  }
+
+  async workspaceGetMembers(): Promise<MemberRead[]> {
+    return this.request<MemberRead[]>("workspaces/me/members");
+  }
+
+  async workspaceInviteMember(data: MemberInvite): Promise<MemberRead> {
+    return this.request<MemberRead>("workspaces/me/members", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async workspaceUpdateMemberPermissions(uid: string, page_permissions: string[]): Promise<MemberRead> {
+    return this.request<MemberRead>(`workspaces/me/members/${uid}/permissions`, {
+      method: "PATCH",
+      body: JSON.stringify({ page_permissions }),
+    });
+  }
+
+  async workspaceRemoveMember(uid: string): Promise<void> {
+    return this.request<void>(`workspaces/me/members/${uid}`, { method: "DELETE" });
   }
 
   async refreshAccessToken(): Promise<TokenResponse> {
@@ -935,8 +1024,13 @@ class ApiClient {
   }
 
   async uploadFile(formData: FormData): Promise<UploadResponse> {
+    const headers: Record<string, string> = {};
+    if (this.accessToken) {
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
+    }
     const response = await fetch(`${this.baseUrl}/files/upload`, {
       method: "POST",
+      headers,
       body: formData,
     });
     if (!response.ok) {

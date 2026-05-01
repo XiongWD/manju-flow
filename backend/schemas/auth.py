@@ -1,7 +1,7 @@
 """Auth Pydantic schemas"""
 
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -48,6 +48,9 @@ class UserRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime] = None
+    # 多租户字段（superadmin 为 None）
+    workspace_id: Optional[str] = None
+    page_permissions: Optional[List[str]] = None
 
     model_config = {"from_attributes": True}
 
@@ -61,3 +64,7 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    # 登录后前端直接可用，无需再解码 JWT
+    workspace_id: Optional[str] = None
+    page_permissions: Optional[List[str]] = None
+    role: Optional[str] = None

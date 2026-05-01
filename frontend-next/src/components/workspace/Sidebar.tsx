@@ -14,10 +14,12 @@ import {
   Package,
   BarChart3,
   Settings,
+  Users,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { UserRead } from '@/lib/api-client'
 
 interface NavItem {
   to: string
@@ -49,12 +51,26 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   },
   {
     label: '系统',
-    items: [{ to: '/workspace/settings', icon: Settings, name: '设置' }],
+    items: [
+      { to: '/workspace/team', icon: Users, name: '团队管理' },
+      { to: '/workspace/settings', icon: Settings, name: '设置' },
+    ],
   },
 ]
 
-export function Sidebar({ collapsed = false, onToggle, mobile = false }: { collapsed?: boolean; onToggle?: () => void; mobile?: boolean }) {
+export function Sidebar({ collapsed = false, onToggle, mobile = false, user }: { collapsed?: boolean; onToggle?: () => void; mobile?: boolean; user?: UserRead | null }) {
   const pathname = usePathname()
+
+  // employer 角色按 page_permissions 过滤导航项
+  const visibleGroups = navGroups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => {
+      if (!user || user.role !== 'employer') return true
+      const perms = user.page_permissions
+      if (!perms) return false
+      return perms.some((p) => item.to === p || item.to.startsWith(p))
+    }),
+  })).filter((group) => group.items.length > 0)
 
   return (
     <aside className={`relative fixed left-0 top-0 flex h-screen flex-col transition-all duration-200 ${mobile ? 'z-50 w-[280px]' : collapsed ? 'z-30 w-[84px]' : 'z-30 w-[248px]'}`}>
@@ -95,7 +111,7 @@ export function Sidebar({ collapsed = false, onToggle, mobile = false }: { colla
 
       {/* ── 导航列表 ── */}
       <nav className="flex-1 overflow-y-auto px-3 py-2">
-        {navGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label} className="mb-5">
             {!collapsed && (
               <div className="mb-3 px-3 text-[11px] font-medium tracking-[0.16em] text-white/18">

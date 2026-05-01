@@ -56,20 +56,26 @@ def test_import_compliance_assets():
 # ── Datetime usage check ──
 def test_no_utcnow_in_pipeline():
     """Verify no deprecated datetime.utcnow() in pipeline code."""
-    import subprocess
-    result = subprocess.run(
-        ["grep", "-r", "datetime.utcnow()", "services/pipeline/", "--include=*.py"],
-        capture_output=True, text=True, cwd="/home/hand/work/manju/backend"
-    )
-    assert result.returncode != 0, f"Found datetime.utcnow(): {result.stdout}"
+    import pathlib, re
+    pipeline_dir = pathlib.Path(__file__).parent.parent / "services" / "pipeline"
+    matches = []
+    for py_file in pipeline_dir.rglob("*.py"):
+        content = py_file.read_text(encoding="utf-8", errors="ignore")
+        if "datetime.utcnow()" in content:
+            matches.append(str(py_file))
+    assert not matches, f"Found datetime.utcnow() in: {matches}"
 
 
 # ── Print usage check ──
 def test_no_print_in_pipeline():
     """Verify no print() calls in pipeline code."""
-    import subprocess
-    result = subprocess.run(
-        ["grep", "-r", "print(", "services/pipeline/", "--include=*.py"],
-        capture_output=True, text=True, cwd="/home/hand/work/manju/backend"
-    )
-    assert result.returncode != 0, f"Found print(): {result.stdout}"
+    import pathlib
+    pipeline_dir = pathlib.Path(__file__).parent.parent / "services" / "pipeline"
+    matches = []
+    for py_file in pipeline_dir.rglob("*.py"):
+        content = py_file.read_text(encoding="utf-8", errors="ignore")
+        for i, line in enumerate(content.splitlines(), 1):
+            stripped = line.strip()
+            if stripped.startswith("print(") or " print(" in line:
+                matches.append(f"{py_file}:{i}: {stripped[:80]}")
+    assert not matches, f"Found print() calls:\n" + "\n".join(matches)

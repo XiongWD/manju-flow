@@ -9,6 +9,8 @@ from .analytics import router as analytics_router
 from .knowledge import router as knowledge_router
 from .jobs import router as jobs_router
 from .workspace import router as workspace_router
+from .workspaces import router as workspaces_router
+from .workspaces import system_router
 from .files import router as files_router
 from .story_bibles import router as story_bibles_router
 from .characters import router as characters_router
@@ -27,7 +29,7 @@ __all__ = [
     "projects_router", "apikeys_router", "episodes_router",
     "scenes_router", "qa_router", "assets_router",
     "publish_router", "analytics_router", "knowledge_router",
-    "jobs_router", "workspace_router", "files_router",
+    "jobs_router", "workspace_router", "workspaces_router", "system_router", "files_router",
     "story_bibles_router", "characters_router", "locations_router",
     "script_parse_router", "props_router", "prompt_templates_router",
     "stills_router", "complexity_router", "timeline_router",

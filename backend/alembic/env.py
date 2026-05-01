@@ -16,11 +16,16 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# 从 .env 读取 DATABASE_URL 覆盖
+# 从项目根目录的 .env 读取 DATABASE_URL
 import os
 from dotenv import load_dotenv
-load_dotenv()
-db_url = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./manju.db")
+
+_HERE = os.path.dirname(os.path.abspath(__file__))         # backend/alembic/
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(_HERE))    # project root
+load_dotenv(os.path.join(_PROJECT_ROOT, ".env"))
+
+_default_db = f"sqlite+aiosqlite:///{os.path.join(_PROJECT_ROOT, 'data', 'manju.db')}"
+db_url = os.getenv("DATABASE_URL", _default_db)
 config.set_main_option("sqlalchemy.url", db_url)
 
 

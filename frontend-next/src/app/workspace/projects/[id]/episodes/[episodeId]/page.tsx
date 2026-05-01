@@ -1,56 +1,11 @@
-import { Suspense } from "react";
+'use client';
+
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { GlassSurface, GlassChip } from "@/components/ui/primitives";
 import { apiClient, EpisodeWithScenes, AssetWithLinks, EpisodeAudioConfig, EpisodeAudioAssets, QAEvidenceAssets, RulesReportResponse } from "@/lib/api-client";
 import { SceneList } from "./SceneList";
 import { SceneCreateForm } from "./SceneCreateForm";
-
-export const dynamic = 'force-dynamic';
-
-async function EpisodeDetail({
-  episodeId,
-}: {
-  projectId: string;
-  episodeId: string;
-}) {
-  const episode = await apiClient.get<EpisodeWithScenes>(`episodes/${episodeId}`);
-
-  if (!episode) {
-    return (
-      <GlassSurface variant="elevated" className="p-6">
-        <p className="text-zinc-400">剧集未找到</p>
-      </GlassSurface>
-    );
-  }
-
-  // 获取当前剪辑版详情（如果有）
-  let currentCutAsset: AssetWithLinks | null = null;
-  if (episode.current_cut_asset_id) {
-    try {
-      currentCutAsset = await apiClient.getAsset(episode.current_cut_asset_id);
-    } catch {
-      // asset 可能不存在，忽略错误
-    }
-  }
-
-  // 获取音频配置和资产
-  let audioConfig = null;
-  let audioAssets = null;
-  let qaEvidenceAssets = null;
-  let rulesReport = null;
-  try {
-    audioConfig = await apiClient.getEpisodeAudioConfig(episodeId);
-    audioAssets = await apiClient.getEpisodeAudioAssets(episodeId);
-    qaEvidenceAssets = await apiClient.getEpisodeQAEvidenceAssets(episodeId);
-    rulesReport = await apiClient.getEpisodeRulesReport(episodeId).catch(() => null);
-  } catch {
-    // 音频数据可能不存在，忽略错误
-  }
-
-  return (
-    <EpisodeDetailContent episode={episode} currentCutAsset={currentCutAsset} audioConfig={audioConfig} audioAssets={audioAssets} qaEvidenceAssets={qaEvidenceAssets} rulesReport={rulesReport} />
-  );
-}
 
 function EpisodeDetailContent({
   episode,
@@ -389,12 +344,68 @@ function EpisodeDetailContent({
   );
 }
 
-export default async function EpisodeDetailPage({
+function EpisodeDetail({ projectId, episodeId }: { projectId: string; episodeId: string }) {
+  const [episode, setEpisode] = useState<EpisodeWithScenes | null>(null);
+  const [currentCutAsset, setCurrentCutAsset] = useState<AssetWithLinks | null>(null);
+  const [audioConfig, setAudioConfig] = useState<EpisodeAudioConfig | null>(null);
+  const [audioAssets, setAudioAssets] = useState<EpisodeAudioAssets | null>(null);
+  const [qaEvidenceAssets, setQaEvidenceAssets] = useState<QAEvidenceAssets | null>(null);
+  const [rulesReport, setRulesReport] = useState<RulesReportResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const ep = await apiClient.get<EpisodeWithScenes>(`episodes/${episodeId}`);
+        if (!ep) { setError('剧集未找到'); setLoading(false); return; }
+        setEpisode(ep);
+
+        if (ep.current_cut_asset_id) {
+          try { setCurrentCutAsset(await apiClient.getAsset(ep.current_cut_asset_id)); } catch {}
+        }
+        try {
+          const [ac, aa, qa, rr] = await Promise.all([
+            apiClient.getEpisodeAudioConfig(episodeId),
+            apiClient.getEpisodeAudioAssets(episodeId),
+            apiClient.getEpisodeQAEvidenceAssets(episodeId),
+            apiClient.getEpisodeRulesReport(episodeId).catch(() => null),
+          ]);
+          setAudioConfig(ac);
+          setAudioAssets(aa);
+          setQaEvidenceAssets(qa);
+          setRulesReport(rr);
+        } catch {}
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '加载失败');
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, [episodeId]);
+
+  if (loading) return <div className="flex items-center justify-center py-12"><div className="text-zinc-500">加载中...</div></div>;
+  if (error || !episode) return <GlassSurface variant="elevated" className="p-6"><p className="text-zinc-400">{error || '剧集未找到'}</p></GlassSurface>;
+
+  return (
+    <EpisodeDetailContent
+      episode={episode}
+      currentCutAsset={currentCutAsset}
+      audioConfig={audioConfig}
+      audioAssets={audioAssets}
+      qaEvidenceAssets={qaEvidenceAssets}
+      rulesReport={rulesReport}
+    />
+  );
+}
+
+export default function EpisodeDetailPage({
   params,
 }: {
   params: Promise<{ id: string; episodeId: string }>;
 }) {
-  const { id, episodeId } = await params;
+  const { id, episodeId } = use(params);
 
   return (
     <div className="p-6">
@@ -406,16 +417,7 @@ export default async function EpisodeDetailPage({
           ← 返回项目详情
         </Link>
       </div>
-
-      <Suspense
-        fallback={
-          <div className="flex items-center justify-center py-12">
-            <div className="text-zinc-500">加载中...</div>
-          </div>
-        }
-      >
-        <EpisodeDetail projectId={id} episodeId={episodeId} />
-      </Suspense>
+      <EpisodeDetail projectId={id} episodeId={episodeId} />
     </div>
   );
 }

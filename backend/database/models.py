@@ -1,7 +1,7 @@
 """Manju Production OS — 全部 ORM 模型
 
 模型清单：
- 0.  users (auth)
+ 0.  users (auth)       0a. workspaces          0b. workspace_members
  1.  projects           2.  project_configs     3.  story_bibles
  4.  characters          5.  character_assets    6.  episodes
  7.  scenes              8.  scene_versions      9.  assets
@@ -11,6 +11,11 @@
 19. api_keys            20. delivery_packages   21. job_events
 22. locations           23. script_parse_reports 24. shot_import_reports
 25. script_issues       26. still_candidates
+
+角色体系（v2）：
+  superadmin — 系统超管，无 workspace，专属 /system/* 页面，可创建/禁用 manager
+  manager    — Workspace 负责人，拥有 1 个 workspace，最多开设 5 个 employer
+  employer   — 团队成员，受邀加入 workspace，页面权限由 manager 分配
 """
 
 from datetime import datetime, timezone
@@ -55,10 +60,19 @@ class Project(SoftDeleteMixin, Base):
     budget_limit: Mapped[Optional[float]] = mapped_column(Float, comment="预算上限（USD）")
     status: Mapped[str] = mapped_column(String(32), default="DRAFT", comment="项目状态")
     description: Mapped[Optional[str]] = mapped_column(Text, comment="项目描述")
+    workspace_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="SET NULL"), nullable=True, index=True, comment="所属 workspace（多租户隔离）"
+    )
+    owner_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True, comment="创建者 user_id"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
     # 关系
+    workspace: Mapped[Optional["Workspace"]] = relationship(
+        back_populates="projects", foreign_keys="Project.workspace_id"
+    )
     configs: Mapped[list["ProjectConfig"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     story_bibles: Mapped[list["StoryBible"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     characters: Mapped[list["Character"]] = relationship(back_populates="project", cascade="all, delete-orphan")
@@ -750,8 +764,77 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(256), unique=True, nullable=False, index=True, comment="登录邮箱")
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False, comment="bcrypt 哈希")
     display_name: Mapped[Optional[str]] = mapped_column(String(128), comment="显示名称")
-    role: Mapped[str] = mapped_column(String(32), default="admin", comment="角色: admin/operator/viewer")
+    role: Mapped[str] = mapped_column(
+        String(32), default="manager",
+        comment="角色: superadmin（系统超管，无workspace）/ manager（workspace负责人）/ employer（团队成员）"
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, comment="最后登录时间")
+
+    # 关系
+    owned_workspace: Mapped[Optional["Workspace"]] = relationship(
+        back_populates="owner", foreign_keys="Workspace.owner_id", uselist=False
+    )
+    workspace_memberships: Mapped[list["WorkspaceMember"]] = relationship(
+        back_populates="user", foreign_keys="WorkspaceMember.user_id"
+    )
+
+
+# ─── 0a. workspaces ─────────────────────────────────────────────────────────
+
+class Workspace(Base):
+    __tablename__ = "workspaces"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(256), nullable=False, comment="Workspace 名称")
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True,
+        comment="所属 manager 的 user_id（每个 manager 只能拥有一个 workspace）"
+    )
+    max_employers: Mapped[int] = mapped_column(Integer, default=5, comment="employer 上限数量")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    # 关系
+    owner: Mapped["User"] = relationship(
+        back_populates="owned_workspace", foreign_keys=[owner_id]
+    )
+    members: Mapped[list["WorkspaceMember"]] = relationship(
+        back_populates="workspace", cascade="all, delete-orphan"
+    )
+    projects: Mapped[list["Project"]] = relationship(
+        back_populates="workspace", foreign_keys="Project.workspace_id"
+    )
+
+
+# ─── 0b. workspace_members ──────────────────────────────────────────────────
+
+class WorkspaceMember(Base):
+    __tablename__ = "workspace_members"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True, comment="所属 workspace"
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True, comment="成员 user_id"
+    )
+    role: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="成员角色: manager / employer"
+    )
+    page_permissions: Mapped[Optional[list]] = mapped_column(
+        JSON, nullable=True,
+        comment="employer 可访问的页面路径列表，如 [\"/workspace/story\"]；manager 为 null（全权限）"
+    )
+    invited_by: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="邀请人 user_id"
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    # 关系
+    workspace: Mapped["Workspace"] = relationship(back_populates="members")
+    user: Mapped["User"] = relationship(back_populates="workspace_memberships", foreign_keys=[user_id])
+    inviter: Mapped[Optional["User"]] = relationship(foreign_keys=[invited_by])

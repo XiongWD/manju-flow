@@ -9,8 +9,9 @@
 **后端**：
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+# 设置环境变量（复制根目录 .env.example 为 .env 并修改）
+cp ../.env.example ../.env
 DB_AUTO_CREATE=true ENVIRONMENT=development uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -21,7 +22,50 @@ npm install
 npm run dev    # http://localhost:3000
 ```
 
+**一键脚本（推荐）**：
+```powershell
+# Windows
+.\scripts\manju.ps1 start
+```
+```bash
+# Linux / macOS
+./scripts/manju.sh start
+```
+
 ---
+
+## 本地一键脚本（Linux / macOS / Windows）
+
+仓库提供了两个方便的服务管理脚本：
+
+- `scripts/manju.sh` — 用于类 Unix 系统（bash）。
+- `scripts/manju.ps1` — 用于 Windows PowerShell。
+
+示例（在仓库根目录执行）：
+
+```bash
+# 在类 Unix / WSL / macOS
+./scripts/manju.sh start        # 启动 backend + frontend
+./scripts/manju.sh stop         # 停止
+./scripts/manju.sh restart
+./scripts/manju.sh status
+```
+
+```powershell
+# 在 Windows PowerShell
+.\scripts\manju.ps1 start
+.\scripts\manju.ps1 stop
+.\scripts\manju.ps1 restart frontend
+.\scripts\manju.ps1 status
+```
+
+脚本特点：
+- 自动选择 backend 的虚拟环境（如果存在 `.venv` / `venv`），并用 `uvicorn` 启动 FastAPI。
+- 在 Windows 上通过 `cmd.exe /c npx.cmd` 启动 Next.js，解决 `.cmd` 可执行问题。
+- 启动前会尝试 `pip install -r backend/requirements.txt`（仅在需要时）。
+
+安全提示：生产环境请不要使用脚本中的默认配置，尽量通过进程管理器（systemd / service / PM2 等）部署。
+
 
 ## 技术栈
 
@@ -275,6 +319,32 @@ manju/
 
 ---
 
+## 默认账号（开发用）
+
+仓库在本地开发模式下支持通过环境变量指定初始管理员账号。如果未提供，下面是推荐的开发默认账号（仅用于本地开发/测试，生产环境请务必修改）：
+
+- 初始管理员邮箱: admin@manju.local
+- 初始管理员密码: ChangeMe123!
+
+如何使用：
+
+- 在启动前将环境变量导出：
+
+```bash
+export MANJU_ADMIN_EMAIL=admin@manju.local
+export MANJU_ADMIN_PASSWORD=ChangeMe123!
+```
+
+- 或在 Windows PowerShell 中：
+
+```powershell
+$env:MANJU_ADMIN_EMAIL = 'admin@manju.local'
+$env:MANJU_ADMIN_PASSWORD = 'ChangeMe123!'
+```
+
+注意：启动时如果 `MANJU_ADMIN_EMAIL` 和 `MANJU_ADMIN_PASSWORD` 被设置，应用将使用它们来创建初始管理员账号（仅在数据库为空时）。请务必在生产环境使用更复杂的密码并通过安全渠道管理密钥。默认密码仅适用于本地开发快速体验。
+
+
 ## 已知限制 & 后续计划
 
 - 🔜 真实 Provider API 字段验证（Kling/Seedance contract test）
@@ -326,18 +396,20 @@ Alembic 的 `env.py` 已从 `.env` 读取 `DATABASE_URL`，无需改动。
 ```bash
 cd backend
 
-# 1. 确保 DATABASE_URL 指向 PostgreSQL
+# 1. 确保 DATABASE_URL 指向 PostgreSQL（从项目根运行）
 export DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/manju"
 
 # 2. 如果从 SQLite 迁移，先查看当前迁移版本
-sqlite3 manju.db "SELECT version_num FROM alembic_version;"
+sqlite3 data/manju.db "SELECT version_num FROM alembic_version;"
 
 # 3. 在 PG 中标记该版本（假设版本为 0008）
 alembic stamp 0008
 
-# 4. 后续增量迁移正常执行
+# 4. 后续增量迁移正常执行（alembic.ini 在项目根，从项目根运行）
 alembic upgrade head
 ```
+
+> alembic 命令均在 **项目根目录** 运行，`alembic.ini` 已位于根目录。
 
 ### 4. 数据迁移（SQLite → PostgreSQL）
 
@@ -345,10 +417,10 @@ Alembic 只管 schema，数据迁移需要额外工具：
 
 ```bash
 # 方案 A：pgloader（推荐，一行命令）
-pgloader sqlite:///./manju.db postgresql://user:password@localhost:5432/manju
+pgloader sqlite:///./data/manju.db postgresql://user:password@localhost:5432/manju
 
 # 方案 B：pg_dump + 手动导入（小数据量可用）
-sqlite3 manju.db .dump > dump.sql
+sqlite3 data/manju.db .dump > dump.sql
 # 手动编辑 dump.sql 修正 SQLite 特有语法后导入 psql
 ```
 

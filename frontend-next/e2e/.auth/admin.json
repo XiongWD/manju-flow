@@ -1,0 +1,18 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "access_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZWVlM2U3MWU4MWM0MmY3OWIzY2QxYzQyNTE2ZWI4NyIsImVtYWlsIjoiYWRtaW5AbWFuanUubG9jYWwiLCJyb2xlIjoibWFuYWdlciIsIndvcmtzcGFjZV9pZCI6IjRkZWQ5ZTA4OGFiOTQ2NTdiYjRhZmM1ZTAzOTViOGM5IiwicGFnZV9wZXJtaXNzaW9ucyI6bnVsbCwiZXhwIjoxNzc3NjY2MDMxLCJ0eXBlIjoiYWNjZXNzIn0.5wPRnOJxkBtHTtCl4LhHvM1GssMnYBIy451kSuIfPnk"
+        },
+        {
+          "name": "refresh_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZWVlM2U3MWU4MWM0MmY3OWIzY2QxYzQyNTE2ZWI4NyIsImVtYWlsIjoiYWRtaW5AbWFuanUubG9jYWwiLCJyb2xlIjoibWFuYWdlciIsIndvcmtzcGFjZV9pZCI6IjRkZWQ5ZTA4OGFiOTQ2NTdiYjRhZmM1ZTAzOTViOGM5IiwicGFnZV9wZXJtaXNzaW9ucyI6bnVsbCwiZXhwIjoxNzc3NjY2MDMxLCJ0eXBlIjoiYWNjZXNzIn0.5wPRnOJxkBtHTtCl4LhHvM1GssMnYBIy451kSuIfPnk"
+        }
+      ]
+    }
+  ]
+}

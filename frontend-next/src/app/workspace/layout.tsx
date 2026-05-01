@@ -26,10 +26,31 @@ export default function WorkspaceLayout({
 
   // 加载当前用户信息，未登录则跳转到登录页
   useEffect(() => {
-    apiClient.getMe().then(setUser).catch(() => {
+    apiClient.getMe().then((u) => {
+      // superadmin 跳转到系统管理页面
+      if (u.role === 'superadmin') {
+        router.replace('/system');
+        return;
+      }
+      setUser(u);
+    }).catch(() => {
       router.replace('/login');
     });
   }, [router]);
+
+  // employer 路径权限守卫
+  useEffect(() => {
+    if (!user || user.role !== 'employer') return;
+    const perms = user.page_permissions;
+    if (!perms || perms.length === 0) {
+      router.replace('/login');
+      return;
+    }
+    const allowed = perms.some((p) => pathname === p || pathname.startsWith(p));
+    if (!allowed) {
+      router.replace(perms[0]);
+    }
+  }, [user, pathname, router]);
 
   // 关闭 mobile menu 当路由变化
   useEffect(() => {
@@ -40,7 +61,7 @@ export default function WorkspaceLayout({
     <div className="flex min-h-screen bg-zinc-950 overflow-x-hidden">
       {/* Desktop sidebar */}
       {!isMobile && (
-        <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((v) => !v)} />
+        <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((v) => !v)} user={user} />
       )}
 
       {/* Mobile overlay + sidebar */}
@@ -54,6 +75,7 @@ export default function WorkspaceLayout({
             collapsed={false}
             onToggle={() => setMobileMenuOpen(false)}
             mobile
+            user={user}
           />
         </>
       )}

@@ -1,7 +1,12 @@
 """Shared test fixtures for manju backend."""
 import asyncio
+import os
 from typing import AsyncGenerator
 import pytest
+
+# Disable auth middleware so CRUD endpoint tests can reach routes without tokens.
+# Must be set before any app/config module is imported.
+os.environ.setdefault("AUTH_PROTECTED_PREFIXES", "")
 
 # App-level fixtures — only loaded if main import succeeds.
 # This allows unit/smoke tests to run even if the app has import issues.
@@ -16,7 +21,9 @@ try:
 except Exception:
     APP_AVAILABLE = False
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_manju.db"
+import os as _os
+_PROJECT_ROOT = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+TEST_DATABASE_URL = f"sqlite+aiosqlite:///{_os.path.join(_PROJECT_ROOT, 'data', 'test_manju.db')}"
 
 @pytest.fixture(scope="session")
 def event_loop():

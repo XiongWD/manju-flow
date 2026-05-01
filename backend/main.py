@@ -57,6 +57,8 @@ from routers import (
     knowledge_router,
     jobs_router,
     workspace_router,
+    workspaces_router,
+    system_router,
     files_router,
     story_bibles_router,
     characters_router,
@@ -194,6 +196,8 @@ app.include_router(analytics_router)
 app.include_router(knowledge_router)
 app.include_router(jobs_router)
 app.include_router(workspace_router)
+app.include_router(workspaces_router)
+app.include_router(system_router)
 app.include_router(files_router)
 app.include_router(story_bibles_router)
 app.include_router(characters_router)
@@ -357,6 +361,138 @@ async def seed_demo_data():
         "project_id": pid,
         "episode_id": eid,
     }
+
+
+@app.post("/api/seed-multitenancy")
+async def seed_multitenancy():
+    """
+    创建多租户测试账号（仅开发环境）：
+      superadmin@manju.ai / SuperAdmin123!  → role=superadmin
+      manager001@manju.ai / Manager123!     → role=manager, Workspace "测试空间"
+      manager002@manju.ai / Manager123!     → role=manager, Workspace "测试空间2"
+      employer001@manju.ai / Emp123!        → role=employer, 权限仅 ["/workspace/story"]
+    幂等：已存在则跳过。
+    """
+    import os
+    env = os.getenv("ENVIRONMENT", "development").lower()
+    if env not in ("development", "debug"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Only available in development mode")
+
+    import uuid
+    from sqlalchemy import select
+    from database.connection import async_session_factory
+    from database.models import User, Workspace, WorkspaceMember
+    from services.auth import hash_password
+
+    results: dict = {}
+
+    async with async_session_factory() as session:
+
+        async def get_or_create_user(email: str, password: str, display: str, role: str) -> User:
+            row = await session.execute(select(User).where(User.email == email))
+            u = row.scalar_one_or_none()
+            if u is None:
+                u = User(
+                    id=uuid.uuid4().hex,
+                    email=email,
+                    password_hash=hash_password(password),
+                    display_name=display,
+                    role=role,
+                    is_active=True,
+                )
+                session.add(u)
+                await session.flush()
+                results[email] = "created"
+            else:
+                results[email] = "already_exists"
+            return u
+
+        async def get_or_create_workspace(name: str, owner: User) -> Workspace:
+            row = await session.execute(select(Workspace).where(Workspace.owner_id == owner.id))
+            ws = row.scalar_one_or_none()
+            if ws is None:
+                ws = Workspace(
+                    id=uuid.uuid4().hex,
+                    name=name,
+                    owner_id=owner.id,
+                    max_employers=5,
+                    is_active=True,
+                )
+                session.add(ws)
+                await session.flush()
+            return ws
+
+        async def get_or_create_member(ws: Workspace, user: User, inviter: User, perms: list) -> None:
+            row = await session.execute(
+                select(WorkspaceMember).where(
+                    WorkspaceMember.workspace_id == ws.id,
+                    WorkspaceMember.user_id == user.id,
+                )
+            )
+            if row.scalar_one_or_none() is None:
+                m = WorkspaceMember(
+                    id=uuid.uuid4().hex,
+                    workspace_id=ws.id,
+                    user_id=user.id,
+                    role="employer",
+                    page_permissions=perms,
+                    invited_by=inviter.id,
+                )
+                session.add(m)
+                await session.flush()
+
+        # 1. superadmin
+        await get_or_create_user("superadmin@manju.ai", "SuperAdmin123!", "超级管理员", "superadmin")
+
+        # 2. manager001 + 工作区"测试空间"
+        mgr1 = await get_or_create_user("manager001@manju.ai", "Manager123!", "Manager 001", "manager")
+        ws1 = await get_or_create_workspace("测试空间", mgr1)
+        # manager self-membership
+        row = await session.execute(
+            select(WorkspaceMember).where(
+                WorkspaceMember.workspace_id == ws1.id,
+                WorkspaceMember.user_id == mgr1.id,
+            )
+        )
+        if row.scalar_one_or_none() is None:
+            session.add(WorkspaceMember(
+                id=uuid.uuid4().hex,
+                workspace_id=ws1.id,
+                user_id=mgr1.id,
+                role="manager",
+                page_permissions=[],
+                invited_by=None,
+            ))
+            await session.flush()
+
+        # 3. manager002 + 工作区"测试空间2"
+        mgr2 = await get_or_create_user("manager002@manju.ai", "Manager123!", "Manager 002", "manager")
+        ws2 = await get_or_create_workspace("测试空间2", mgr2)
+        row = await session.execute(
+            select(WorkspaceMember).where(
+                WorkspaceMember.workspace_id == ws2.id,
+                WorkspaceMember.user_id == mgr2.id,
+            )
+        )
+        if row.scalar_one_or_none() is None:
+            session.add(WorkspaceMember(
+                id=uuid.uuid4().hex,
+                workspace_id=ws2.id,
+                user_id=mgr2.id,
+                role="manager",
+                page_permissions=[],
+                invited_by=None,
+            ))
+            await session.flush()
+
+        # 4. employer001 → ws1, 权限仅 /workspace/story
+        emp1 = await get_or_create_user("employer001@manju.ai", "Emp123!", "Employer 001", "employer")
+        await get_or_create_member(ws1, emp1, mgr1, ["/workspace/story"])
+
+        await session.commit()
+
+    return {"message": "Multitenancy seed complete", "results": results}
 
 
 if __name__ == "__main__":

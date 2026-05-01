@@ -8,10 +8,15 @@ from typing import Any
 from pydantic import Field
 from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
 
+# Project root = parent of backend/
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DEFAULT_DB_PATH = os.path.join(_PROJECT_ROOT, "data", "manju.db")
+_DEFAULT_DB_URL = f"sqlite+aiosqlite:///{_DEFAULT_DB_PATH}"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=os.path.join(_PROJECT_ROOT, ".env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
@@ -25,7 +30,7 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = "json"  # "json" or "text"
 
     # ── Database ──
-    DATABASE_URL: str = "sqlite+aiosqlite:///./manju.db"
+    DATABASE_URL: str = Field(default=_DEFAULT_DB_URL)
 
     # ── Auth ──
     JWT_SECRET: str = "manju-dev-secret-change-in-production"
