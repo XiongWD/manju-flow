@@ -1,17 +1,51 @@
-share/
-**/.venv/
+# ── 系统 & 编辑器 ────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ── Python ───────────────────────────────────────────────
 **/__pycache__/
-**/.pytest_cache/
-**/.mypy_cache/
-**/.next/
-**/node_modules/
 **/*.pyc
 **/*.pyo
-**/.DS_Store
-backend/.env
-backend/manju.db
+**/*.pyd
+**/.venv/
+**/.mypy_cache/
+**/.pytest_cache/
+**/.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# ── Node / Next.js ───────────────────────────────────────
+**/node_modules/
+**/.next/
+**/out/
+**/.turbo/
+
+# ── 环境变量 & 密钥 ──────────────────────────────────────
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
+
+# ── 数据库文件 ───────────────────────────────────────────
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+
+# ── 运行时产生的文件 ──────────────────────────────────────
+**/*.pid
 backend/.local/
+storage_data/
+
+# ── 日志 & 测试产物 ──────────────────────────────────────
+logs/
+**/*.log
+
+# ── 构建 & 打包产物 ──────────────────────────────────────
+share/
+
+# ── 工具 & AI 索引（本地专用） ────────────────────────────
 .claude/
 .gitnexus/
-logs/
-.vscode/
