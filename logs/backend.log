@@ -1,78 +1,12 @@
-INFO:     Started server process [12189]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
+INFO:     Will watch for changes in these directories: ['/home/hand/work/manju/backend']
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:47194 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54290 - "GET /api/files/serve/a80b901feaec437e826d93c4b4195832 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54300 - "POST /api/files/upload HTTP/1.1" 201 Created
-INFO:     127.0.0.1:54304 - "GET /api/files/serve/ HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:54320 - "GET /api/files/serve/eee3b4917b144f5db53219763589d2ef HTTP/1.1" 400 Bad Request
-INFO:     127.0.0.1:56250 - "GET /api/files/serve/50d0688e11b9409f85382f79ea282d3e HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56260 - "GET /api/files/serve/a80b901feaec437e826d93c4b4195832 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56274 - "HEAD /api/files/serve/a80b901feaec437e826d93c4b4195832 HTTP/1.1" 405 Method Not Allowed
-INFO:     127.0.0.1:56276 - "POST /api/files/upload HTTP/1.1" 201 Created
-INFO:     127.0.0.1:56282 - "GET /api/assets/?limit=3 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56286 - "GET /api/files/serve/71e44ebe32c648718a25a261b1efc41b HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56288 - "GET /api/files/serve/71e44ebe32c648718a25a261b1efc41b HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56300 - "GET /api/files/preview/71e44ebe32c648718a25a261b1efc41b HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56308 - "GET /api/files/serve/a80b901feaec437e826d93c4b4195832 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56320 - "GET /api/files/serve/eee3b4917b144f5db53219763589d2ef HTTP/1.1" 400 Bad Request
-INFO:     127.0.0.1:58596 - "POST /api/files/upload HTTP/1.1" 201 Created
-INFO:     127.0.0.1:58608 - "GET /api/files/serve/44d6188d1b4f4a1fb6f4fe51ec90ffad HTTP/1.1" 200 OK
-INFO:     127.0.0.1:43706 - "GET /api/apikeys/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49890 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49894 - "GET /api/projects/d2d947914f28419abdcd77e6ee50a6ac HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49908 - "GET /api/episodes/?project_id=d2d947914f28419abdcd77e6ee50a6ac HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49910 - "GET /api/episodes/?project_id=33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49920 - "GET /api/episodes/?project_id=33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49926 - "GET /api/scenes/?episode_id=a9ec524714704386b0557838d632771b HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49932 - "GET /api/episodes/?project_id=eeb699690d8b425e830b489b19c48bbf HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60216 - "GET /api/jobs/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60228 - "POST /api/seed HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60230 - "GET /api/projects/341b7c9d563f485e814c4503011a6dd1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60246 - "GET /api/episodes/?project_id=341b7c9d563f485e814c4503011a6dd1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60258 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60274 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60278 - "GET /api/projects/33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60296 - "GET /api/story-bibles?project_id=33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:60310 - "GET /api/characters?project_id=33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:60288 - "GET /api/episodes/?project_id=33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60316 - "GET /api/scenes/?episode_id=a9ec524714704386b0557838d632771b HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60332 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33618 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33634 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33650 - "GET /api/apikeys/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42098 - "GET /api/apikeys/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56388 - "GET /api/apikeys/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53708 - "GET /api/projects/d2d947914f28419abdcd77e6ee50a6ac HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53718 - "GET /api/episodes/?project_id=d2d947914f28419abdcd77e6ee50a6ac HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53728 - "GET /api/episodes/?project_id=33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53738 - "GET /api/episodes/?project_id=33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53748 - "GET /api/scenes/?episode_id=a9ec524714704386b0557838d632771b HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53762 - "GET /api/episodes/?project_id=eeb699690d8b425e830b489b19c48bbf HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53764 - "POST /api/episodes/ HTTP/1.1" 201 Created
-INFO:     127.0.0.1:53772 - "GET /api/episodes/?project_id=eeb699690d8b425e830b489b19c48bbf HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53786 - "GET /api/scenes/?episode_id=e2ddecba20314f56ad089fe1dd3480a6 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53792 - "GET /api/jobs/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57864 - "POST /api/seed HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57866 - "GET /api/projects/45e54dd704a649c0b56d136c7a1f8aaa HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57874 - "GET /api/episodes/?project_id=45e54dd704a649c0b56d136c7a1f8aaa HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57884 - "GET /api/qa/runs?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57892 - "GET /api/qa/issues?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57904 - "GET /api/projects/33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57916 - "GET /api/story-bibles/?project_id=33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57918 - "GET /api/episodes/?project_id=33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57926 - "GET /api/characters/?project_id=33e260d6d6564d33ae0d0ff0318d8a6c HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57932 - "GET /api/scenes/?episode_id=a9ec524714704386b0557838d632771b HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57942 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57952 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52460 - "GET /api/projects/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52476 - "GET /api/apikeys/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:39568 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:39584 - "POST /api/files/upload HTTP/1.1" 201 Created
-INFO:     127.0.0.1:39588 - "GET /api/assets/?limit=200 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:39598 - "GET /api/files/serve/d3bb1a1d8670449db18dba661c228cd7 HTTP/1.1" 200 OK
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [12189]
+INFO:     Started reloader process [11573] using WatchFiles
+{"timestamp": "2026-05-01 08:58:22,060", "level": "WARNING", "logger": "manju.config", "message": "Using default JWT_SECRET \u2014 do not use in production!"}
+INFO:     Started server process [11575]
+INFO:     Waiting for application startup.
+{"timestamp": "2026-05-01 08:58:22,248", "level": "WARNING", "logger": "manju", "message": "MANJU_ADMIN_EMAIL / MANJU_ADMIN_PASSWORD not set. Create admin via POST /api/auth/register"}
+INFO:     Application startup complete.
+INFO:     127.0.0.1:49708 - "GET /api/assets?limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56578 - "GET /api/assets?limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35882 - "GET /api/assets?limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60010 - "GET /api/assets?page=1&page_size=5 HTTP/1.1" 200 OK

@@ -1,10 +1,10 @@
 """文件上传与资产关联路由 — MinIO/S3 兼容"""
 import logging
-
-
-from config import settings
+import os
 import tempfile
 from typing import Optional
+
+from config import settings
 
 
 logger = logging.getLogger(__name__)
@@ -195,7 +195,7 @@ async def serve_file(asset_id: str, db: AsyncSession = Depends(get_db)):
         if not ok:
             raise HTTPException(status_code=500, detail="文件下载失败")
         content_type = asset.mime_type or "application/octet-stream"
-        filename = (asset.metadata_json.get("original_filename") or object_name.split("/")[-1]) if asset.metadata_json else object_name.split("/")[-1]
+        filename = (asset.metadata_json.get("original_filename") or object_name.split("")[-1]) if asset.metadata_json else object_name.split("")[-1]
 
         import os
         file_size = os.path.getsize(tmp)

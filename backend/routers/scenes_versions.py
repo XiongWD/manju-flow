@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import get_db
+from database.connection import get_db, get_or_none
 from database.models import Scene, SceneVersion
 from schemas.scene import (
     SceneVersionRead,
@@ -28,7 +28,7 @@ from schemas.scene import (
 from services.pipeline.orchestrator import retry_scene
 from services.pipeline.version_lock import VersionLockService
 
-router = APIRouter()
+router = APIRouter(prefix="/api/scenes")
 
 
 # ─── Version listing ─────────────────────────────────────────

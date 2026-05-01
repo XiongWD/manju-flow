@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/assets", tags=["assets"])
 
 
-@router.get("/")
+@router.get("")
 async def list_assets(
     project_id: str = Query(None, description="项目 ID"),
     owner_type: str = Query(None, description="归属类型"),
@@ -59,7 +59,7 @@ async def list_assets(
     return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
-@router.post("/", response_model=AssetRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=AssetRead, status_code=status.HTTP_201_CREATED)
 async def create_asset(body: AssetCreate, db: AsyncSession = Depends(get_db)):
     """创建资产记录（不上传文件，只创建记录）"""
     asset = Asset(**body.model_dump())

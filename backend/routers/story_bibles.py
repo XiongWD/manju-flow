@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/story-bibles", tags=["story-bibles"])
 
 
-@router.post("/", response_model=StoryBibleRead, status_code=201)
+@router.post("", response_model=StoryBibleRead, status_code=201)
 async def create_story_bible(body: StoryBibleCreate, db: AsyncSession = Depends(get_db)):
     """创建 Story Bible"""
     obj = StoryBible(**body.model_dump())
@@ -26,7 +26,7 @@ async def create_story_bible(body: StoryBibleCreate, db: AsyncSession = Depends(
     return obj
 
 
-@router.get("/")
+@router.get("")
 async def list_story_bibles(
     project_id: str,
     page: int = Query(1, ge=1),

@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/workspace/PageHeader";
 import GlassButton from "@/components/ui/primitives/GlassButton";
+import GlassSurface from "@/components/ui/primitives/GlassSurface";
 import { apiClient, type Asset } from "@/lib/api-client";
 import { inferAssetType } from "./components/types";
 import SceneCascadeSelector from "./components/SceneCascadeSelector";
@@ -22,8 +23,11 @@ function AssetHubContent() {
 
   // ── Core state ──
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [totalAssets, setTotalAssets] = useState(0);
   const [loading, setLoading] = useState(true);
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 20;
 
   // ── Filter state ──
   const [searchQuery, setSearchQuery] = useState("");
@@ -41,10 +45,11 @@ function AssetHubContent() {
   const [previewError, setPreviewError] = useState<string | null>(null);
 
   // ── Fetch assets ──
-  const loadAssets = useCallback(async () => {
+  const loadAssets = useCallback(async (page?: number) => {
     try {
       setLoading(true);
-      const params: Parameters<typeof apiClient.listAssets>[0] = { limit: 200 };
+      const p = page ?? currentPage;
+      const params: Parameters<typeof apiClient.listAssets>[0] = { limit: pageSize, skip: (p - 1) * pageSize };
       if (urlProjectId) params.project_id = urlProjectId;
       if (selectedVersionId) {
         params.owner_type = "scene_version";
@@ -55,11 +60,15 @@ function AssetHubContent() {
       }
       const data = await apiClient.listAssets(params);
       setAssets(data.items);
+      setTotalAssets(data.total);
     } catch (error) { console.error("加载资产失败:", error); }
     finally { setLoading(false); }
-  }, [urlProjectId, selectedVersionId, ownerTypeFilter, ownerIdInput]);
+  }, [urlProjectId, selectedVersionId, ownerTypeFilter, ownerIdInput, currentPage, pageSize]);
 
   useEffect(() => { void loadAssets(); }, [loadAssets]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setCurrentPage(1); }, [urlProjectId, selectedVersionId, ownerTypeFilter]);
 
   // ── Preview URL loading (for fullscreen image detection) ──
   useEffect(() => {
@@ -114,7 +123,7 @@ function AssetHubContent() {
 
   const handleResetFilters = () => {
     setSearchQuery(""); setAssetTypeFilter("all"); setOwnerTypeFilter(""); setOwnerIdInput(""); setQaEvidenceMode(false);
-    setSelectedVersionId(null);
+    setSelectedVersionId(null); setCurrentPage(1);
   };
 
   const handleClearCascade = () => setSelectedVersionId(null);
@@ -122,6 +131,10 @@ function AssetHubContent() {
   const handlePreview = (asset: Asset) => {
     setPreviewAsset(asset); setPreviewUrl(null); setPreviewError(null);
   };
+
+  // ── Pagination helpers ──
+  const totalPages = Math.max(1, Math.ceil(totalAssets / pageSize));
+  const goToPage = (page: number) => { setCurrentPage(page); void loadAssets(page); };
 
   // ── Fullscreen image preview detection ──
   const showFullscreenImage = previewAsset && previewUrl &&
@@ -166,6 +179,57 @@ function AssetHubContent() {
       <AssetLinkPanel />
 
       <AssetList assets={assets} filteredAssets={filteredAssets} loading={loading} onPreview={handlePreview} />
+
+      {/* Pagination */}
+      {totalAssets > 0 && (
+        <GlassSurface variant="panel" padded>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-zinc-400">
+              共 {totalAssets} 条，第 {currentPage} / {totalPages} 页
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => goToPage(1)}
+                disabled={currentPage === 1}
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >首页</button>
+              <button
+                onClick={() => goToPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >上一页</button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                .reduce<(number | string)[]>((acc, p, i, arr) => {
+                  if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) =>
+                  typeof p === "string" ? (
+                    <span key={`dots-${i}`} className="px-1 text-xs text-zinc-500">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => goToPage(p)}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium ${p === currentPage ? "bg-violet-600 text-white" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
+                    >{p}</button>
+                  )
+                )}
+              <button
+                onClick={() => goToPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >下一页</button>
+              <button
+                onClick={() => goToPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >末页</button>
+            </div>
+          </div>
+        </GlassSurface>
+      )}
 
       {showFullscreenImage && (
         <ImagePreviewFullscreen

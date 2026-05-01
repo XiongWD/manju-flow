@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import get_db
+from database.connection import get_db, get_or_none
 from database.models import Scene, StillCandidate
 from schemas.still import (
 

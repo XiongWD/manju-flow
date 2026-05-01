@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import get_db
+from database.connection import get_db, get_or_none, not_deleted
 from database.models import Episode, Scene, SceneVersion
 from schemas.episode import EpisodeCreate, EpisodeUpdate, EpisodeRead, EpisodeWithScenesRead, LockSceneVersionRequest, LockSceneVersionResponse
 from schemas.rule import RulesReportResponse, RulesReportSummary, RuleExecutionResult
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/episodes", tags=["episodes"])
 
 
-@router.get("/")
+@router.get("")
 async def list_episodes(
     project_id: str = Query(None, description="项目 ID"),
     page: int = Query(1, ge=1),
@@ -50,7 +50,7 @@ async def list_episodes(
     return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
-@router.post("/", response_model=EpisodeRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=EpisodeRead, status_code=status.HTTP_201_CREATED)
 async def create_episode(body: EpisodeCreate, db: AsyncSession = Depends(get_db)):
     """创建剧集"""
     episode = Episode(**body.model_dump())

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
-@router.post("/", response_model=ProjectRead, status_code=201)
+@router.post("", response_model=ProjectRead, status_code=201)
 async def create_project(body: ProjectCreate, db: AsyncSession = Depends(get_db)):
     """创建项目"""
     project = Project(**body.model_dump())
@@ -31,7 +31,7 @@ async def create_project(body: ProjectCreate, db: AsyncSession = Depends(get_db)
     return project
 
 
-@router.get("/")
+@router.get("")
 async def list_projects(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),

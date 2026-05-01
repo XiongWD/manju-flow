@@ -1,33 +1,286 @@
-npm verbose cli /usr/bin/node /usr/bin/npm
+npm verbose cli /usr/bin/node /usr/lib/node_modules/npm/bin/npm-cli.js
 npm info using npm@10.9.4
 npm info using node@v22.22.0
-npm verbose title npm run dev -p 3000
-npm verbose argv "run" "dev" "--" "-p" "3000"
-npm verbose logfile logs-max:10 dir:/home/hand/.npm/_logs/2026-04-30T16_57_09_894Z-
-npm verbose logfile /home/hand/.npm/_logs/2026-04-30T16_57_09_894Z-debug-0.log
-
-> frontend-next@0.1.0 dev
-> next dev -H 0.0.0.0 -p 3000
-
+npm verbose title npm exec next dev -H 0.0.0.0 -p 3000
+npm verbose argv "exec" "--" "next" "dev" "-H" "0.0.0.0" "-p" "3000"
+npm verbose logfile logs-max:10 dir:/home/hand/.npm/_logs/2026-05-01T07_33_54_794Z-
+npm verbose logfile /home/hand/.npm/_logs/2026-05-01T07_33_54_794Z-debug-0.log
+⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at <unknown> (Error: listen EADDRINUSE: address already in use 0.0.0.0:3000) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+[?25h
+npm verbose cwd /home/hand/work/manju/frontend-next
+npm verbose os Linux 6.8.0-110-generic
+npm verbose node v22.22.0
+npm verbose npm  v10.9.4
+npm verbose exit 1
+npm verbose code 1
+npm verbose cli /usr/bin/node /usr/lib/node_modules/npm/bin/npm-cli.js
+npm info using npm@10.9.4
+npm info using node@v22.22.0
+npm verbose title npm exec next dev -H 0.0.0.0 -p 3000
+npm verbose argv "exec" "--" "next" "dev" "-H" "0.0.0.0" "-p" "3000"
+npm verbose logfile logs-max:10 dir:/home/hand/.npm/_logs/2026-05-01T08_47_53_469Z-
+npm verbose logfile /home/hand/.npm/_logs/2026-05-01T08_47_53_469Z-debug-0.log
 ▲ Next.js 16.2.4 (Turbopack)
 - Local:         http://localhost:3000
 - Network:       http://0.0.0.0:3000
-✓ Ready in 458ms
+✓ Ready in 485ms
+⚠ Invalid next.config.ts options detected: 
+⚠     Unrecognized key(s) in object: 'beforeRedirect'
+⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
 - Experiments (use with caution):
   · serverActions
 
- GET /workspace 200 in 1634ms (next.js: 1192ms, application-code: 442ms)
- GET /workspace/settings 200 in 155ms (next.js: 41ms, application-code: 113ms)
- GET /workspace/projects/d2d947914f28419abdcd77e6ee50a6ac 200 in 949ms (next.js: 517ms, application-code: 432ms)
- GET /workspace/projects/33e260d6d6564d33ae0d0ff0318d8a6c/shots 200 in 646ms (next.js: 509ms, application-code: 137ms)
- GET /workspace/projects/eeb699690d8b425e830b489b19c48bbf/shots 200 in 278ms (next.js: 60ms, application-code: 218ms)
- GET /workspace/render 200 in 124ms (next.js: 41ms, application-code: 83ms)
- GET /workspace/projects/45e54dd704a649c0b56d136c7a1f8aaa 200 in 297ms (next.js: 33ms, application-code: 264ms)
- GET /workspace/qa 200 in 170ms (next.js: 42ms, application-code: 128ms)
- GET /workspace/projects/33e260d6d6564d33ae0d0ff0318d8a6c/story 200 in 636ms (next.js: 519ms, application-code: 117ms)
- GET /workspace/assets 200 in 195ms (next.js: 63ms, application-code: 132ms)
- GET /workspace/assets 200 in 98ms (next.js: 7ms, application-code: 91ms)
- GET /workspace/delivery 200 in 144ms (next.js: 48ms, application-code: 96ms)
- GET /workspace/settings 200 in 93ms (next.js: 4ms, application-code: 89ms)
- GET /workspace/assets 200 in 109ms (next.js: 4ms, application-code: 105ms)
-[?25h
+ GET /workspace/assets 200 in 752ms (next.js: 373ms, application-code: 379ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <InnerLayoutRouter url="/workspace..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+      <SegmentViewNode type="page" pagePath="workspace/...">
+        <SegmentTrieNode>
+        <ClientPageRoot Component={function AssetHubPage} serverProvidedParams={{...}}>
+          <AssetHubPage params={Promise} searchParams={Promise}>
+            <Suspense fallback={<div>}>
+              <AssetHubContent>
+                <div className="min-h-scre...">
+                  <PageHeader>
+                  <SceneCascadeSelector>
+                  <AssetFilterBar>
+                  <AssetUploadPanel projectId={undefined} onUploaded={function AssetHubContent.useCallback[loadAssets]}>
+                    <GlassSurface variant="panel" padded={true}>
+                      <div className="glass-surf...">
+                        <div>
+                        <div className="flex flex-...">
+                          <div className="flex items...">
+                            <input>
+                            <button
+                              onClick={function handleUpload}
++                             disabled={true}
+-                             disabled={null}
+                              className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-vi..."
+                            >
++                             上传
+                  ...
+      ...
+ 
+ GET /workspace/assets 200 in 96ms (next.js: 6ms, application-code: 90ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <InnerLayoutRouter url="/workspace..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+      <SegmentViewNode type="page" pagePath="workspace/...">
+        <SegmentTrieNode>
+        <ClientPageRoot Component={function AssetHubPage} serverProvidedParams={{...}}>
+          <AssetHubPage params={Promise} searchParams={Promise}>
+            <Suspense fallback={<div>}>
+              <AssetHubContent>
+                <div className="min-h-scre...">
+                  <PageHeader>
+                  <SceneCascadeSelector>
+                  <AssetFilterBar>
+                  <AssetUploadPanel projectId={undefined} onUploaded={function AssetHubContent.useCallback[loadAssets]}>
+                    <GlassSurface variant="panel" padded={true}>
+                      <div className="glass-surf...">
+                        <div>
+                        <div className="flex flex-...">
+                          <div className="flex items...">
+                            <input>
+                            <button
+                              onClick={function handleUpload}
++                             disabled={true}
+-                             disabled={null}
+                              className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-vi..."
+                            >
++                             上传
+                  ...
+      ...
+ 
+[browser] 加载预览失败: Error: 文本预览失败: 500
+    at AssetPreviewModal.useEffect.loadPreview (src/app/workspace/assets/components/AssetPreviewModal.tsx:45:77)
+  43 | ...AssetType(asset.mime_type, (asset.metadata_json?.original_filename as string) || serveU...
+  44 | ...ment") {
+> 45 | ...h(serveUrl).then((r) => { if (!r.ok) throw new Error(`文本预览失败: ${r.status}`); retu...
+     |                                               ^
+  46 | ...
+  47 | ...
+  48 | ...
+[browser] 加载预览失败: Error: 文本预览失败: 500
+    at AssetPreviewModal.useEffect.loadPreview (src/app/workspace/assets/components/AssetPreviewModal.tsx:45:77)
+  43 | ...AssetType(asset.mime_type, (asset.metadata_json?.original_filename as string) || serveU...
+  44 | ...ment") {
+> 45 | ...h(serveUrl).then((r) => { if (!r.ok) throw new Error(`文本预览失败: ${r.status}`); retu...
+     |                                               ^
+  46 | ...
+  47 | ...
+  48 | ...
+✓ Compiled in 1063ms
+ GET /workspace/assets 200 in 124ms (next.js: 63ms, application-code: 62ms)
+ GET /workspace/assets 200 in 41ms (next.js: 4ms, application-code: 37ms)
+ GET /workspace/assets 200 in 42ms (next.js: 4ms, application-code: 39ms)
+✓ Compiled in 313ms
+⚠ Fast Refresh had to perform a full reload when ./src/app/workspace/assets/page.tsx changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /workspace/assets 200 in 201ms (next.js: 6ms, application-code: 195ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <InnerLayoutRouter url="/workspace..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+      <SegmentViewNode type="page" pagePath="workspace/...">
+        <SegmentTrieNode>
+        <ClientPageRoot Component={function AssetHubPage} serverProvidedParams={{...}}>
+          <AssetHubPage params={Promise} searchParams={Promise}>
+            <Suspense fallback={<div>}>
+              <AssetHubContent>
+                <div className="min-h-scre...">
+                  <PageHeader>
+                  <SceneCascadeSelector>
+                  <AssetFilterBar>
+                  <AssetUploadPanel projectId={undefined} onUploaded={function AssetHubContent.useCallback[loadAssets]}>
+                    <GlassSurface variant="panel" padded={true}>
+                      <div className="glass-surf...">
+                        <div>
+                        <div className="flex flex-...">
+                          <div className="flex items...">
+                            <input>
+                            <button
+                              onClick={function handleUpload}
++                             disabled={true}
+-                             disabled={null}
+                              className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-vi..."
+                            >
++                             上传
+                  ...
+      ...
+ 
+[browser] Uncaught ReferenceError: GlassSurface is not defined
+    at AssetHubContent (file:///home/hand/work/manju/frontend-next/.next/dev/static/chunks/src_098w7jf._.js:3888:235)
+    at AssetHubPage (file:///home/hand/work/manju/frontend-next/.next/dev/static/chunks/src_098w7jf._.js:4032:221)
+✓ Compiled in 201ms
+ GET /workspace/assets 200 in 218ms (next.js: 47ms, application-code: 172ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <InnerLayoutRouter url="/workspace..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+      <SegmentViewNode type="page" pagePath="workspace/...">
+        <SegmentTrieNode>
+        <ClientPageRoot Component={function AssetHubPage} serverProvidedParams={{...}}>
+          <AssetHubPage params={Promise} searchParams={Promise}>
+            <Suspense fallback={<div>}>
+              <AssetHubContent>
+                <div className="min-h-scre...">
+                  <PageHeader>
+                  <SceneCascadeSelector>
+                  <AssetFilterBar>
+                  <AssetUploadPanel projectId={undefined} onUploaded={function AssetHubContent.useCallback[loadAssets]}>
+                    <GlassSurface variant="panel" padded={true}>
+                      <div className="glass-surf...">
+                        <div>
+                        <div className="flex flex-...">
+                          <div className="flex items...">
+                            <input>
+                            <button
+                              onClick={function handleUpload}
++                             disabled={true}
+-                             disabled={null}
+                              className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-vi..."
+                            >
++                             上传
+                  ...
+      ...
+ 
+⚠ Found a change in next.config.ts. Restarting the server to apply the changes...
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+✓ Ready in 544ms
+- Experiments (use with caution):
+  · serverActions
+
+ GET /workspace/assets 200 in 2.5s (next.js: 1657ms, application-code: 892ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <InnerLayoutRouter url="/workspace..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+      <SegmentViewNode type="page" pagePath="workspace/...">
+        <SegmentTrieNode>
+        <ClientPageRoot Component={function AssetHubPage} serverProvidedParams={{...}}>
+          <AssetHubPage params={Promise} searchParams={Promise}>
+            <Suspense fallback={<div>}>
+              <AssetHubContent>
+                <div className="min-h-scre...">
+                  <PageHeader>
+                  <SceneCascadeSelector>
+                  <AssetFilterBar>
+                  <AssetUploadPanel projectId={undefined} onUploaded={function AssetHubContent.useCallback[loadAssets]}>
+                    <GlassSurface variant="panel" padded={true}>
+                      <div className="glass-surf...">
+                        <div>
+                        <div className="flex flex-...">
+                          <div className="flex items...">
+                            <input>
+                            <button
+                              onClick={function handleUpload}
++                             disabled={true}
+-                             disabled={null}
+                              className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-vi..."
+                            >
++                             上传
+                  ...
+      ...
+ 

@@ -8,7 +8,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import get_db
+from database.connection import get_db, get_or_none
 from database.models import Scene, Episode, Project
 from schemas.status import ProgressInfo, StatusPropagationResponse
 from services.status_propagation import StatusPropagationService

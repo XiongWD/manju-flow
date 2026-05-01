@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import get_db
+from database.connection import get_db, get_or_none
 from database.models import Prop, PropState, Project, Scene, User
 from services.auth import get_current_user
 from schemas.prop import PropCreate, PropUpdate, PropRead, PropStateCreate, PropStateUpdate, PropStateRead

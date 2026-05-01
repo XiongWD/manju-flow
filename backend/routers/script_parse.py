@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import get_db
+from database.connection import get_db, get_or_none
 from database.models import Episode, ScriptIssue, ScriptParseReport, ShotImportReport
 from schemas.script_parse import (
 

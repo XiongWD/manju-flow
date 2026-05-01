@@ -64,7 +64,7 @@ def _to_read(char: Character, episode_ids: list[str]) -> dict:
     }
 
 
-@router.post("/", response_model=CharacterRead, status_code=201)
+@router.post("", response_model=CharacterRead, status_code=201)
 async def create_character(body: CharacterCreate, db: AsyncSession = Depends(get_db)):
     """创建角色（可选关联剧集）"""
     episode_ids = body.episode_ids
@@ -77,7 +77,7 @@ async def create_character(body: CharacterCreate, db: AsyncSession = Depends(get
     return _to_read(obj, await _load_episode_ids(db, obj.id))
 
 
-@router.get("/")
+@router.get("")
 async def list_characters(
     project_id: str,
     page: int = Query(1, ge=1),
@@ -88,7 +88,7 @@ async def list_characters(
     """按项目获取角色列表"""
     skip = (page - 1) * page_size
     limit = min(page_size, 200)
-    q = select(Character).where(Character.project_id, not_deleted(Character) == project_id)
+    q = select(Character).where(Character.project_id == project_id, not_deleted(Character))
     if search:
         q = q.filter(or_(
             Character.name.ilike(f"%{search}%"),

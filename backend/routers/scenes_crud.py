@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import get_db
+from database.connection import get_db, get_or_none, not_deleted
 from database.models import Scene, SceneCharacter
 from schemas.scene import (
     SceneCreate,
@@ -23,7 +23,7 @@ from services.broadcast import broadcast
 from services.auth import get_current_user
 from database.models import User
 
-router = APIRouter()
+router = APIRouter(prefix="/api/scenes")
 
 
 # ─── Helpers ──────────────────────────────────────────────────
@@ -78,7 +78,7 @@ def _scene_to_read(scene: Scene, character_ids: list[str]) -> dict:
 # ─── Basic CRUD ──────────────────────────────────────────────
 
 
-@router.get("/")
+@router.get("")
 async def list_scenes(
     episode_id: str = Query(None, description="剧集 ID"),
     page: int = Query(1, ge=1),
@@ -107,7 +107,7 @@ async def list_scenes(
     return {"items": out, "total": total, "skip": skip, "limit": limit}
 
 
-@router.post("/", response_model=SceneRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=SceneRead, status_code=status.HTTP_201_CREATED)
 async def create_scene(body: SceneCreate, db: AsyncSession = Depends(get_db)):
     """创建镜头"""
     scene = Scene(**body.model_dump())

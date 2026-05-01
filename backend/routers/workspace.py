@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import get_db
+from database.connection import get_db, get_or_none
 from database.models import Project, Episode, Scene, Asset
 from schemas.workspace import WorkspaceOverview, ProjectSummary, EpisodeSummary, SceneSummary, ProjectWorkspace
 

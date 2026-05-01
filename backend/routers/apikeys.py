@@ -28,7 +28,7 @@ def _generate_key() -> tuple[str, str, str]:
     return raw, key_hash, key_prefix
 
 
-@router.post("/", response_model=ApiKeyCreated, status_code=201)
+@router.post("", response_model=ApiKeyCreated, status_code=201)
 async def create_apikey(body: ApiKeyCreate, db: AsyncSession = Depends(get_db)):
     """创建 API Key（密钥仅此一次返回）"""
     raw, key_hash, key_prefix = _generate_key()
@@ -51,7 +51,7 @@ async def create_apikey(body: ApiKeyCreate, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.get("/", response_model=list[ApiKeyRead])
+@router.get("", response_model=list[ApiKeyRead])
 async def list_apikeys(db: AsyncSession = Depends(get_db)):
     """获取 API Key 列表（不返回密钥明文）
     # 分页豁免：列表固定小

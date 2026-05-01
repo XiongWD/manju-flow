@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.connection import async_session_factory, get_db
+from database.connection import async_session_factory, get_db, get_or_none, not_deleted
 from database.models import Job, JobStep, Scene
 from services.pipeline.orchestrator import (
 
@@ -36,7 +36,7 @@ from services.pipeline.runner import submit_scene_job_bg
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 
-@router.get("/")
+@router.get("")
 async def list_jobs(
     project_id: str = Query(None),
     status: str = Query(None),

@@ -4,8 +4,8 @@ from routers.scenes_versions import router as versions_router
 
 from fastapi import APIRouter
 
-router = APIRouter(prefix="/api/scenes", tags=["scenes"])
+router = APIRouter(tags=["scenes"])
 
-# Merge all routes from sub-modules
-router.routes.extend(crud_router.routes)
-router.routes.extend(versions_router.routes)
+# Sub-modules have their own prefix="/api/scenes", include without additional prefix
+router.include_router(crud_router)
+router.include_router(versions_router)
