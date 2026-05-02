@@ -10,3 +10,8 @@ INFO:     127.0.0.1:49708 - "GET /api/assets?limit=20 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:56578 - "GET /api/assets?limit=20 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:35882 - "GET /api/assets?limit=20 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:60010 - "GET /api/assets?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11575]
+INFO:     Stopping reloader process [11573]
